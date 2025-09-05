@@ -156,27 +156,19 @@ export const useSmartContractProfile = (ensName?: string) => {
   const ensHash = ensName ? smartContractService.generateENSHash(ensName) : undefined;
 
   const { data: profile, isLoading: isProfileLoading } = useScaffoldReadContract({
-    contractName: "YourContract",
+    contractName: "ENSProfileContract",
     functionName: "getProfile",
     args: ensHash ? [ensHash] : undefined,
-    enabled: !!ensHash,
   });
 
-  const { writeAsync: createProfile, isLoading: isCreating } = useScaffoldWriteContract({
-    contractName: "YourContract",
-    functionName: "createProfile",
-  });
-
-  const { writeAsync: updateProfile, isLoading: isUpdating } = useScaffoldWriteContract({
-    contractName: "YourContract",
-    functionName: "updateProfile",
-  });
+  const { writeContractAsync: createProfile, isPending: isCreating } = useScaffoldWriteContract("ENSProfileContract");
+  const { writeContractAsync: updateProfile, isPending: isUpdating } = useScaffoldWriteContract("ENSProfileContract");
 
   return {
     profile: profile as UserProfile | undefined,
     isLoading: isProfileLoading,
-    createProfile,
-    updateProfile,
+    createProfile: createProfile ? (args: any) => createProfile({ functionName: "createProfile", args }) : undefined,
+    updateProfile: updateProfile ? (args: any) => updateProfile({ functionName: "updateProfile", args }) : undefined,
     isCreating,
     isUpdating,
     ensHash,

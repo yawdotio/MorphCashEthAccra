@@ -56,7 +56,7 @@ contract YourContract is Ownable, ReentrancyGuard {
         uint256 amount; // Amount in wei (ETH)
         uint256 ghsAmount; // Amount in GHS (for reference)
         string paymentMethod; // "mobile_money" or "crypto"
-        string reference;
+        string paymentReference;
         string transactionId;
         bool isVerified;
         bool isProcessed;
@@ -70,7 +70,7 @@ contract YourContract is Ownable, ReentrancyGuard {
     mapping(address => VirtualCard[]) public userVirtualCards;
     mapping(address => uint256) public userCardCount;
     mapping(uint256 => Payment) public payments;
-    mapping(string => uint256) public referenceToPaymentId;
+    mapping(string => uint256) public paymentReferenceToPaymentId;
     mapping(address => uint256[]) public userPayments;
     
     // Arrays
@@ -85,7 +85,7 @@ contract YourContract is Ownable, ReentrancyGuard {
     event VirtualCardCreated(address indexed user, uint256 indexed cardId, string cardName);
     event VirtualCardUpdated(address indexed user, uint256 indexed cardId);
     event VirtualCardDeactivated(address indexed user, uint256 indexed cardId);
-    event PaymentCreated(uint256 indexed paymentId, address indexed user, uint256 amount, string reference);
+    event PaymentCreated(uint256 indexed paymentId, address indexed user, uint256 amount, string paymentReference);
     event PaymentVerified(uint256 indexed paymentId, address indexed user, string transactionId);
     event PaymentProcessed(uint256 indexed paymentId, address indexed user, uint256 cardId);
 
@@ -348,18 +348,18 @@ contract YourContract is Ownable, ReentrancyGuard {
      * @param amount Amount in wei (ETH)
      * @param ghsAmount Amount in GHS (for reference)
      * @param paymentMethod Payment method ("mobile_money" or "crypto")
-     * @param reference Payment reference
+     * @param paymentReference Payment reference
      * @return paymentId The created payment ID
      */
     function createPayment(
         uint256 amount,
         uint256 ghsAmount,
         string memory paymentMethod,
-        string memory reference
+        string memory paymentReference
     ) external nonReentrant returns (uint256) {
         require(amount > 0, "Amount must be greater than 0");
-        require(bytes(reference).length > 0, "Reference cannot be empty");
-        require(referenceToPaymentId[reference] == 0, "Reference already exists");
+        require(bytes(paymentReference).length > 0, "Reference cannot be empty");
+        require(paymentReferenceToPaymentId[paymentReference] == 0, "Reference already exists");
         
         uint256 paymentId = nextPaymentId++;
         
@@ -369,7 +369,7 @@ contract YourContract is Ownable, ReentrancyGuard {
             amount: amount,
             ghsAmount: ghsAmount,
             paymentMethod: paymentMethod,
-            reference: reference,
+            paymentReference: paymentReference,
             transactionId: "",
             isVerified: false,
             isProcessed: false,
@@ -378,10 +378,10 @@ contract YourContract is Ownable, ReentrancyGuard {
         });
         
         payments[paymentId] = newPayment;
-        referenceToPaymentId[reference] = paymentId;
+        paymentReferenceToPaymentId[paymentReference] = paymentId;
         userPayments[msg.sender].push(paymentId);
         
-        emit PaymentCreated(paymentId, msg.sender, amount, reference);
+        emit PaymentCreated(paymentId, msg.sender, amount, paymentReference);
         
         return paymentId;
     }
@@ -477,11 +477,11 @@ contract YourContract is Ownable, ReentrancyGuard {
 
     /**
      * @dev Get payment by reference
-     * @param reference The payment reference
+     * @param paymentReference The payment reference
      * @return The payment data
      */
-    function getPaymentByReference(string memory reference) external view returns (Payment memory) {
-        uint256 paymentId = referenceToPaymentId[reference];
+    function getPaymentByReference(string memory paymentReference) external view returns (Payment memory) {
+        uint256 paymentId = paymentReferenceToPaymentId[paymentReference];
         require(paymentId != 0, "Payment not found");
         return payments[paymentId];
     }

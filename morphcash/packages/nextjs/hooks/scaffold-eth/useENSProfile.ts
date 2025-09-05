@@ -24,28 +24,20 @@ export const useENSProfile = (ensName?: string) => {
 
   // Read profile data
   const { data: profile, isLoading: isProfileLoading } = useScaffoldReadContract({
-    contractName: "YourContract",
+    contractName: "ENSProfileContract",
     functionName: "getProfile",
     args: ensHash ? [ensHash] : undefined,
-    enabled: !!ensHash,
   });
 
   // Write profile data
-  const { writeAsync: createProfile, isLoading: isCreating } = useScaffoldWriteContract({
-    contractName: "YourContract",
-    functionName: "createProfile",
-  });
-
-  const { writeAsync: updateProfile, isLoading: isUpdating } = useScaffoldWriteContract({
-    contractName: "YourContract",
-    functionName: "updateProfile",
-  });
+  const { writeContractAsync: createProfile, isPending: isCreating } = useScaffoldWriteContract("ENSProfileContract");
+  const { writeContractAsync: updateProfile, isPending: isUpdating } = useScaffoldWriteContract("ENSProfileContract");
 
   return {
     profile: profile as UserProfile | undefined,
     isLoading: isProfileLoading,
-    createProfile,
-    updateProfile,
+    createProfile: createProfile ? (args: any) => createProfile({ functionName: "createProfile", args }) : undefined,
+    updateProfile: updateProfile ? (args: any) => updateProfile({ functionName: "updateProfile", args }) : undefined,
     isCreating,
     isUpdating,
     ensHash,
@@ -55,10 +47,9 @@ export const useENSProfile = (ensName?: string) => {
 export const useENSProfileByAddress = (userAddress?: string) => {
   // Read profile data by address
   const { data: profile, isLoading: isProfileLoading } = useScaffoldReadContract({
-    contractName: "YourContract",
+    contractName: "ENSProfileContract",
     functionName: "getProfileByAddress",
     args: userAddress ? [userAddress] : undefined,
-    enabled: !!userAddress,
   });
 
   return {

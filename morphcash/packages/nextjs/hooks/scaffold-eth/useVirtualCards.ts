@@ -18,35 +18,22 @@ export const useVirtualCards = () => {
 
   // Read user's virtual cards
   const { data: cards, isLoading: isCardsLoading, refetch: refetchCards, error: cardsError } = useScaffoldReadContract({
-    contractName: "YourContract",
+    contractName: "VirtualCardContract",
     functionName: "getUserVirtualCards",
-    args: address ? [address] : undefined,
-    enabled: !!address,
+    args: [address || ""],
   });
 
   // Read user's card count
   const { data: cardCount } = useScaffoldReadContract({
-    contractName: "YourContract",
+    contractName: "VirtualCardContract",
     functionName: "getUserCardCount",
-    args: address ? [address] : undefined,
-    enabled: !!address,
+    args: [address || ""],
   });
 
   // Write functions
-  const { writeAsync: createCard, isLoading: isCreating, error: createError } = useScaffoldWriteContract({
-    contractName: "YourContract",
-    functionName: "createVirtualCard",
-  });
-
-  const { writeAsync: updateCard, isLoading: isUpdating } = useScaffoldWriteContract({
-    contractName: "YourContract",
-    functionName: "updateVirtualCard",
-  });
-
-  const { writeAsync: deactivateCard, isLoading: isDeactivating } = useScaffoldWriteContract({
-    contractName: "YourContract",
-    functionName: "deactivateVirtualCard",
-  });
+  const { writeContractAsync: createCard, isPending: isCreating, error: createError } = useScaffoldWriteContract("VirtualCardContract");
+  const { writeContractAsync: updateCard, isPending: isUpdating } = useScaffoldWriteContract("VirtualCardContract");
+  const { writeContractAsync: deactivateCard, isPending: isDeactivating } = useScaffoldWriteContract("VirtualCardContract");
 
   return {
     cards: cards as VirtualCard[] | undefined,
@@ -55,9 +42,9 @@ export const useVirtualCards = () => {
     isCreating,
     isUpdating,
     isDeactivating,
-    createCard: createCard || (() => { throw new Error("createCard not available. Contract may not be deployed or connected."); }),
-    updateCard,
-    deactivateCard,
+    createCard: createCard ? (args: any) => createCard({ functionName: "createVirtualCard", args }) : (() => { throw new Error("createCard not available. Contract may not be deployed or connected."); }),
+    updateCard: updateCard ? (args: any) => updateCard({ functionName: "updateVirtualCard", args }) : undefined,
+    deactivateCard: deactivateCard ? (args: any) => deactivateCard({ functionName: "deactivateVirtualCard", args }) : undefined,
     refetchCards,
     createError,
     cardsError,
