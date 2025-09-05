@@ -49,15 +49,34 @@ contract YourContract is Ownable, ReentrancyGuard {
         uint256 createdAt;
     }
 
+    // Payment Struct
+    struct Payment {
+        uint256 paymentId;
+        address user;
+        uint256 amount; // Amount in wei (ETH)
+        uint256 ghsAmount; // Amount in GHS (for reference)
+        string paymentMethod; // "mobile_money" or "crypto"
+        string reference;
+        string transactionId;
+        bool isVerified;
+        bool isProcessed;
+        uint256 createdAt;
+        uint256 verifiedAt;
+    }
+
     // Mappings
     mapping(bytes32 => UserProfile) public userProfiles;
     mapping(address => bytes32) public addressToENS;
     mapping(address => VirtualCard[]) public userVirtualCards;
     mapping(address => uint256) public userCardCount;
+    mapping(uint256 => Payment) public payments;
+    mapping(string => uint256) public referenceToPaymentId;
+    mapping(address => uint256[]) public userPayments;
     
     // Arrays
     bytes32[] public registeredENS;
     uint256 public nextCardId = 1;
+    uint256 public nextPaymentId = 1;
 
     // Events
     event GreetingChange(address indexed greetingSetter, string newGreeting, bool premium, uint256 value);
@@ -66,6 +85,9 @@ contract YourContract is Ownable, ReentrancyGuard {
     event VirtualCardCreated(address indexed user, uint256 indexed cardId, string cardName);
     event VirtualCardUpdated(address indexed user, uint256 indexed cardId);
     event VirtualCardDeactivated(address indexed user, uint256 indexed cardId);
+    event PaymentCreated(uint256 indexed paymentId, address indexed user, uint256 amount, string reference);
+    event PaymentVerified(uint256 indexed paymentId, address indexed user, string transactionId);
+    event PaymentProcessed(uint256 indexed paymentId, address indexed user, uint256 cardId);
 
     // Constructor: Called once on contract deployment
     // Check packages/hardhat/deploy/00_deploy_your_contract.ts
@@ -317,6 +339,180 @@ contract YourContract is Ownable, ReentrancyGuard {
      */
     function getTotalProfiles() external view returns (uint256) {
         return registeredENS.length;
+    }
+
+    // Payment Verification Functions
+
+    /**
+     * @dev Create a payment record for verification
+     * @param amount Amount in wei (ETH)
+     * @param ghsAmount Amount in GHS (for reference)
+     * @param paymentMethod Payment method ("mobile_money" or "crypto")
+     * @param reference Payment reference
+     * @return paymentId The created payment ID
+     */
+    function createPayment(
+        uint256 amount,
+        uint256 ghsAmount,
+        string memory paymentMethod,
+        string memory reference
+    ) external nonReentrant returns (uint256) {
+        require(amount > 0, "Amount must be greater than 0");
+        require(bytes(reference).length > 0, "Reference cannot be empty");
+        require(referenceToPaymentId[reference] == 0, "Reference already exists");
+        
+        uint256 paymentId = nextPaymentId++;
+        
+        Payment memory newPayment = Payment({
+            paymentId: paymentId,
+            user: msg.sender,
+            amount: amount,
+            ghsAmount: ghsAmount,
+            paymentMethod: paymentMethod,
+            reference: reference,
+            transactionId: "",
+            isVerified: false,
+            isProcessed: false,
+            createdAt: block.timestamp,
+            verifiedAt: 0
+        });
+        
+        payments[paymentId] = newPayment;
+        referenceToPaymentId[reference] = paymentId;
+        userPayments[msg.sender].push(paymentId);
+        
+        emit PaymentCreated(paymentId, msg.sender, amount, reference);
+        
+        return paymentId;
+    }
+
+    /**
+     * @dev Verify a payment (called by backend after payment confirmation)
+     * @param paymentId The payment ID to verify
+     * @param transactionId The transaction ID from payment provider
+     */
+    function verifyPayment(
+        uint256 paymentId,
+        string memory transactionId
+    ) external isOwner {
+        require(payments[paymentId].paymentId != 0, "Payment does not exist");
+        require(!payments[paymentId].isVerified, "Payment already verified");
+        require(bytes(transactionId).length > 0, "Transaction ID cannot be empty");
+        
+        payments[paymentId].isVerified = true;
+        payments[paymentId].transactionId = transactionId;
+        payments[paymentId].verifiedAt = block.timestamp;
+        
+        emit PaymentVerified(paymentId, payments[paymentId].user, transactionId);
+    }
+
+    /**
+     * @dev Process a verified payment and create virtual card
+     * @param paymentId The payment ID to process
+     * @param cardName Name for the virtual card
+     * @param cardNumber Masked card number
+     * @param cardType Type of card
+     * @param spendingLimit Spending limit for the card
+     */
+    function processPaymentAndCreateCard(
+        uint256 paymentId,
+        string memory cardName,
+        string memory cardNumber,
+        string memory cardType,
+        uint256 spendingLimit
+    ) external isOwner {
+        require(payments[paymentId].paymentId != 0, "Payment does not exist");
+        require(payments[paymentId].isVerified, "Payment not verified");
+        require(!payments[paymentId].isProcessed, "Payment already processed");
+        
+        address user = payments[paymentId].user;
+        
+        // Create virtual card
+        uint256 cardId = nextCardId++;
+        
+        // Generate expiry date (3 years from now)
+        uint256 currentTime = block.timestamp;
+        uint256 expiryTimestamp = currentTime + (3 * 365 * 24 * 60 * 60); // 3 years in seconds
+        
+        // Convert to MM/YY format
+        uint256 expiryYear = (expiryTimestamp / (365 * 24 * 60 * 60)) + 1970;
+        uint256 expiryMonth = ((expiryTimestamp % (365 * 24 * 60 * 60)) / (30 * 24 * 60 * 60)) + 1;
+        
+        string memory expiryDate = string(abi.encodePacked(
+            expiryMonth < 10 ? "0" : "",
+            uint2str(expiryMonth),
+            "/",
+            uint2str(expiryYear % 100)
+        ));
+        
+        VirtualCard memory newCard = VirtualCard({
+            cardId: cardId,
+            cardName: cardName,
+            cardNumber: cardNumber,
+            expiryDate: expiryDate,
+            cardType: cardType,
+            spendingLimit: spendingLimit,
+            currentSpend: 0,
+            isActive: true,
+            createdAt: block.timestamp
+        });
+        
+        userVirtualCards[user].push(newCard);
+        userCardCount[user]++;
+        payments[paymentId].isProcessed = true;
+        
+        emit VirtualCardCreated(user, cardId, cardName);
+        emit PaymentProcessed(paymentId, user, cardId);
+    }
+
+    /**
+     * @dev Get payment details by ID
+     * @param paymentId The payment ID
+     * @return The payment data
+     */
+    function getPayment(uint256 paymentId) external view returns (Payment memory) {
+        require(payments[paymentId].paymentId != 0, "Payment does not exist");
+        return payments[paymentId];
+    }
+
+    /**
+     * @dev Get payment by reference
+     * @param reference The payment reference
+     * @return The payment data
+     */
+    function getPaymentByReference(string memory reference) external view returns (Payment memory) {
+        uint256 paymentId = referenceToPaymentId[reference];
+        require(paymentId != 0, "Payment not found");
+        return payments[paymentId];
+    }
+
+    /**
+     * @dev Get all payments for a user
+     * @param userAddress The user's address
+     * @return Array of payment IDs
+     */
+    function getUserPayments(address userAddress) external view returns (uint256[] memory) {
+        return userPayments[userAddress];
+    }
+
+    /**
+     * @dev Check if a payment is verified
+     * @param paymentId The payment ID
+     * @return True if verified, false otherwise
+     */
+    function isPaymentVerified(uint256 paymentId) external view returns (bool) {
+        require(payments[paymentId].paymentId != 0, "Payment does not exist");
+        return payments[paymentId].isVerified;
+    }
+
+    /**
+     * @dev Check if a payment is processed
+     * @param paymentId The payment ID
+     * @return True if processed, false otherwise
+     */
+    function isPaymentProcessed(uint256 paymentId) external view returns (bool) {
+        require(payments[paymentId].paymentId != 0, "Payment does not exist");
+        return payments[paymentId].isProcessed;
     }
 
     /**
