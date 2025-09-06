@@ -1,14 +1,14 @@
 "use client";
 
-import React, { useCallback, useRef, useState, useEffect } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Bars3Icon, BugAntIcon, UserIcon, ArrowRightOnRectangleIcon } from "@heroicons/react/24/outline";
-import { FaucetButton, RainbowKitCustomConnectButton } from "~~/components/scaffold-eth";
-import { useOutsideClick } from "~~/hooks/scaffold-eth";
 import { LoginModal } from "./auth/LoginModal";
+import { ArrowRightOnRectangleIcon, Bars3Icon, BugAntIcon, UserIcon } from "@heroicons/react/24/outline";
+import { FaucetButton, RainbowKitCustomConnectButton } from "~~/components/scaffold-eth";
 import { useAuth } from "~~/contexts/AuthContext";
+import { useOutsideClick } from "~~/hooks/scaffold-eth";
 
 type HeaderMenuLink = {
   label: string;
@@ -30,7 +30,7 @@ export const menuLinks: HeaderMenuLink[] = [
     href: "/#features",
   },
   {
-    label: "How It Works", 
+    label: "How It Works",
     href: "/#how-it-works",
   },
 ];
@@ -84,13 +84,16 @@ export const Header = () => {
   useEffect(() => {
     if (user && user.isAuthenticated && showLoginModal) {
       setShowLoginModal(false);
-      router.push('/dashboard');
+      router.push("/dashboard");
     }
   }, [user, showLoginModal, router]);
 
   return (
     <>
-      <div className="sticky top-0 z-50 navbar bg-white/80 backdrop-blur-md border-b border-gray-200 min-h-0 flex-shrink-0 justify-between shadow-sm px-0 sm:px-2" style={{ position: 'sticky' }}>
+      <div
+        className="sticky top-0 z-50 navbar bg-base-100/80 backdrop-blur-md border-b border-base-300 min-h-0 flex-shrink-0 justify-between shadow-sm px-0 sm:px-2"
+        style={{ position: "sticky" }}
+      >
         <div className="navbar-start w-auto lg:w-1/2">
           <div className="lg:hidden dropdown" ref={burgerMenuRef}>
             <div
@@ -116,12 +119,12 @@ export const Header = () => {
           </div>
           <Link href="/" passHref className="hidden lg:flex items-center gap-2 ml-4 mr-6 shrink-0">
             <div className="flex relative w-8 h-8">
-              <div className="w-8 h-8 bg-gradient-to-r from-purple-600 to-blue-600 rounded-lg flex items-center justify-center">
-                <span className="text-white font-bold text-sm">M</span>
+              <div className="w-8 h-8 bg-gradient-to-r from-primary to-secondary rounded-lg flex items-center justify-center">
+                <span className="text-primary-content font-bold text-sm">M</span>
               </div>
             </div>
             <div className="flex flex-col">
-              <span className="font-bold leading-tight text-lg text-gray-900">MorphCash</span>
+              <span className="font-bold leading-tight text-lg text-base-content">MorphCash</span>
             </div>
           </Link>
           <ul className="hidden lg:flex lg:flex-nowrap menu menu-horizontal px-1 gap-2">
@@ -131,15 +134,13 @@ export const Header = () => {
         <div className="navbar-end flex-grow mr-4">
           {user && user.isAuthenticated ? (
             <div className="flex items-center gap-2 mr-2">
-              <div className="hidden sm:flex items-center gap-2 text-sm text-gray-600">
+              <div className="hidden sm:flex items-center gap-2 text-sm text-base-content/70">
                 <UserIcon className="h-4 w-4" />
-                <span>
-                  {user.ensName || user.email || 'User'}
-                </span>
+                <span>{user.ensName || user.email || "User"}</span>
               </div>
               <button
                 onClick={handleLogout}
-                className="btn btn-ghost btn-sm hover:bg-red-50 hover:text-red-600 transition-colors duration-200"
+                className="btn btn-ghost btn-sm hover:bg-error/10 hover:text-error transition-colors duration-200"
               >
                 <ArrowRightOnRectangleIcon className="h-4 w-4 mr-1" />
                 Log Out
@@ -148,7 +149,7 @@ export const Header = () => {
           ) : (
             <button
               onClick={() => setShowLoginModal(true)}
-              className="btn btn-ghost btn-sm mr-2 hover:bg-purple-50 hover:text-purple-600 transition-colors duration-200"
+              className="btn btn-ghost btn-sm mr-2 hover:bg-primary/10 hover:text-primary transition-colors duration-200"
             >
               <UserIcon className="h-4 w-4 mr-1" />
               Log In
@@ -158,12 +159,9 @@ export const Header = () => {
           <FaucetButton />
         </div>
       </div>
-      
+
       {/* Login Modal - Outside header div */}
-      <LoginModal
-        isOpen={showLoginModal}
-        onClose={handleCloseLogin}
-      />
+      <LoginModal isOpen={showLoginModal} onClose={handleCloseLogin} />
     </>
   );
 };
