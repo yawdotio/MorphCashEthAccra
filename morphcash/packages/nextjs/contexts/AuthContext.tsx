@@ -117,10 +117,12 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         throw new Error("Invalid email or password");
       }
 
-      // Always update display name
-      userData.displayName = displayName.trim();
-      existingUsers[email.toLowerCase()] = userData;
-      localStorage.setItem("morphcash_users", JSON.stringify(existingUsers));
+      // Update display name if provided
+      if (displayName && displayName.trim()) {
+        userData.displayName = displayName.trim();
+        existingUsers[email.toLowerCase()] = userData;
+        localStorage.setItem("morphcash_users", JSON.stringify(existingUsers));
+      }
 
       const sessionData = {
         userId: email.toLowerCase(),
@@ -264,7 +266,6 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         ensName: ensName.toLowerCase(),
         address: isWalletAuth ? ensName.replace("wallet_", "") : undefined,
         email: profileData.email || "",
-        displayName: profileData.displayName || `User ${userId.slice(-6)}`,
         accountType: "basic" as const,
         registeredAt: new Date().toISOString(),
         authMethod: authMethod,
@@ -280,7 +281,6 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         ensName: userData.ensName,
         ensAvatar: profileData.avatar,
         email: userData.email,
-        displayName: userData.displayName,
         isAuthenticated: true,
         accountType: userData.accountType,
         authMethod: authMethod,
