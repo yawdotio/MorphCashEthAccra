@@ -4,8 +4,9 @@
  * Documentation: https://developer.visa.com/pages/working-with-visa-apis/two-way-ssl
  */
 
-import fs from 'fs';
-import path from 'path';
+// Server-side only imports
+const fs = typeof window === 'undefined' ? require('fs') : null;
+const path = typeof window === 'undefined' ? require('path') : null;
 
 export interface VisaSSLCredentials {
   privateKeyPath: string;
@@ -33,18 +34,22 @@ export class VisaSSLManager {
    * Validate SSL certificate files exist
    */
   validateCertificates(): { valid: boolean; errors: string[] } {
+    if (typeof window !== 'undefined') {
+      return { valid: false, errors: ['SSL validation not available in browser'] };
+    }
+
     const errors: string[] = [];
 
     // Check if certificate files exist
-    if (!fs.existsSync(this.config.credentials.privateKeyPath)) {
+    if (!fs?.existsSync(this.config.credentials.privateKeyPath)) {
       errors.push(`Private key file not found: ${this.config.credentials.privateKeyPath}`);
     }
 
-    if (!fs.existsSync(this.config.credentials.clientCertPath)) {
+    if (!fs?.existsSync(this.config.credentials.clientCertPath)) {
       errors.push(`Client certificate file not found: ${this.config.credentials.clientCertPath}`);
     }
 
-    if (!fs.existsSync(this.config.credentials.caCertPath)) {
+    if (!fs?.existsSync(this.config.credentials.caCertPath)) {
       errors.push(`CA certificate file not found: ${this.config.credentials.caCertPath}`);
     }
 
@@ -58,10 +63,14 @@ export class VisaSSLManager {
    * Get SSL configuration for HTTP requests
    */
   getSSLConfig() {
+    if (typeof window !== 'undefined') {
+      throw new Error('SSL configuration not available in browser');
+    }
+
     return {
-      key: fs.readFileSync(this.config.credentials.privateKeyPath),
-      cert: fs.readFileSync(this.config.credentials.clientCertPath),
-      ca: fs.readFileSync(this.config.credentials.caCertPath),
+      key: fs?.readFileSync(this.config.credentials.privateKeyPath),
+      cert: fs?.readFileSync(this.config.credentials.clientCertPath),
+      ca: fs?.readFileSync(this.config.credentials.caCertPath),
       rejectUnauthorized: true
     };
   }
@@ -89,6 +98,10 @@ export class VisaSSLManager {
    * Create keystore from certificates (for Java applications)
    */
   async createKeystore(): Promise<{ success: boolean; keystorePath?: string; error?: string }> {
+    if (typeof window !== 'undefined') {
+      return { success: false, error: 'Keystore creation not available in browser' };
+    }
+
     try {
       const { exec } = require('child_process');
       const { promisify } = require('util');
@@ -118,6 +131,10 @@ export class VisaSSLManager {
    * Convert certificates to different formats
    */
   async convertCertificates(): Promise<{ success: boolean; error?: string }> {
+    if (typeof window !== 'undefined') {
+      return { success: false, error: 'Certificate conversion not available in browser' };
+    }
+
     try {
       const { exec } = require('child_process');
       const { promisify } = require('util');
@@ -161,6 +178,10 @@ export function createVisaSSLConfig(): VisaSSLConfig {
  * Download required certificates for Visa API
  */
 export async function downloadVisaCertificates(): Promise<{ success: boolean; error?: string }> {
+  if (typeof window !== 'undefined') {
+    return { success: false, error: 'Certificate download not available in browser' };
+  }
+
   try {
     const https = require('https');
     const fs = require('fs');
@@ -211,6 +232,10 @@ export async function generateCSR(organizationInfo: {
   commonName: string;
   emailAddress: string;
 }): Promise<{ success: boolean; csrPath?: string; privateKeyPath?: string; error?: string }> {
+  if (typeof window !== 'undefined') {
+    return { success: false, error: 'CSR generation not available in browser' };
+  }
+
   try {
     const { exec } = require('child_process');
     const { promisify } = require('util');

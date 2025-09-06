@@ -3,7 +3,7 @@
  * Defines the database structure for storing card details including sensitive information
  */
 
-import { encryptData, decryptData } from './encryption';
+import { encryptionService } from './encryption';
 
 // Database schema for virtual cards table
 export interface VirtualCardRecord {
@@ -227,10 +227,10 @@ export class VirtualCardDatabaseService {
       user_address: data.userAddress,
       card_id: data.cardId,
       card_name: data.cardName,
-      card_number_encrypted: await encryptData(cardNumber),
+      card_number_encrypted: await encryptionService.encryptSensitiveData(data.userAddress as any, cardNumber),
       card_number_masked: VirtualCardGenerator.maskCardNumber(cardNumber),
       expiry_date: expiryDate,
-      cvc_encrypted: await encryptData(cvc),
+      cvc_encrypted: await encryptionService.encryptSensitiveData(data.userAddress as any, cvc),
       card_type: cardType,
       spending_limit: data.spendingLimit,
       balance: data.balance,
@@ -249,8 +249,8 @@ export class VirtualCardDatabaseService {
    * Decrypt sensitive card data for authorized access
    */
   static async decryptCardData(record: VirtualCardRecord): Promise<VirtualCardDetails> {
-    const cardNumber = await decryptData(record.card_number_encrypted);
-    const cvc = await decryptData(record.cvc_encrypted);
+    const cardNumber = await encryptionService.decryptSensitiveData(record.user_address as any, record.card_number_encrypted);
+    const cvc = await encryptionService.decryptSensitiveData(record.user_address as any, record.cvc_encrypted);
     
     return {
       id: record.id,

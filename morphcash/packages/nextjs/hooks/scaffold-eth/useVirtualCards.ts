@@ -1,7 +1,7 @@
 import { useScaffoldReadContract, useScaffoldWriteContract } from "~~/hooks/scaffold-eth";
 import { useAccount } from "wagmi";
 import { useEnhancedAuth } from "~~/contexts/EnhancedAuthContext";
-import { userService } from "~~/services/userService";
+import userService from "~~/services/userService";
 import { useState, useEffect } from "react";
 
 export interface VirtualCard {

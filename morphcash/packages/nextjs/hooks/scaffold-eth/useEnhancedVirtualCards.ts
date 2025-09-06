@@ -6,7 +6,7 @@
 import { useState, useEffect } from 'react';
 import { useAccount } from 'wagmi';
 import { useScaffoldReadContract, useScaffoldWriteContract } from '~~/hooks/scaffold-eth';
-import { UserService } from '~~/services/userService';
+import UserService from '~~/services/userService';
 import { VirtualCard, DatabaseResponse, PaginatedResponse } from '~~/services/database/types';
 import { useEnhancedAuth } from '~~/contexts/EnhancedAuthContext';
 

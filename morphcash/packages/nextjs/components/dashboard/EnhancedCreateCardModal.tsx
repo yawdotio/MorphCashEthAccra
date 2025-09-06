@@ -349,7 +349,7 @@ export const EnhancedCreateCardModal = ({
       />
 
       {/* Mobile Money Payment Modal */}
-      <MobileMoneyPaymentModal
+      <MTNMobileMoneyPaymentModal
         isOpen={showMobileMoney}
         onClose={() => setShowMobileMoney(false)}
         onPaymentSuccess={handlePaymentSuccess}

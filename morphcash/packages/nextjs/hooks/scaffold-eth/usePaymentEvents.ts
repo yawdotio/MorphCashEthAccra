@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useAccount } from 'wagmi';
 import { useScaffoldEventHistory } from '~~/hooks/scaffold-eth';
-import { userService } from '~~/services/userService';
+import userService from '~~/services/userService';
 import { useEnhancedAuth } from '~~/contexts/EnhancedAuthContext';
 import { VirtualCardGenerator } from '~~/services/database/virtualCardsSchema';
 
