@@ -1,8 +1,8 @@
 "use client";
 
-import React, { createContext, useContext, useEffect, useState, ReactNode } from "react";
+import React, { ReactNode, createContext, useContext, useEffect, useState } from "react";
 import { useAccount, useDisconnect } from "wagmi";
-import { useEnsName, useEnsAvatar } from "wagmi";
+import { useEnsAvatar, useEnsName } from "wagmi";
 import { useENSProfile } from "~~/hooks/scaffold-eth/useENSProfile";
 import { apiService } from "~~/services/backendService";
 import { verifyENSOwnership } from "~~/utils/ensVerification";
@@ -13,6 +13,7 @@ interface User {
   ensName?: string;
   ensAvatar?: string;
   email?: string;
+  displayName?: string;
   isAuthenticated: boolean;
   accountType: "basic" | "premium" | "enterprise";
   authMethod: "ens" | "email" | "wallet";
@@ -31,15 +32,16 @@ interface User {
 interface AuthContextType {
   user: User | null;
   isLoading: boolean;
-  loginWithEmail: (email: string, password: string) => Promise<void>;
+  loginWithEmail: (email: string, password: string, displayName: string) => Promise<void>;
   loginWithENS: (ensName: string) => Promise<void>;
   loginWithWallet: (address: string) => Promise<void>;
-  registerWithEmail: (email: string, password: string) => Promise<void>;
+  registerWithEmail: (email: string, password: string, displayName: string) => Promise<void>;
   logout: () => void;
   checkUserExists: (identifier: string, method: "ens" | "email") => Promise<boolean>;
   createENSProfile: (ensName: string, profileData: any) => Promise<void>;
   updateENSProfile: (ensName: string, profileData: any) => Promise<void>;
   loadENSProfile: (ensName: string) => Promise<void>;
+  updateDisplayName: (displayName: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -75,10 +77,10 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       const sessionData = localStorage.getItem("morphcash_session");
       if (sessionData) {
         const session = JSON.parse(sessionData);
-        
+
         // Validate session with backend
         const sessionResult = await apiService.validateSession(session.sessionId);
-        
+
         if (sessionResult.success && sessionResult.data) {
           setUser({
             id: sessionResult.data.id,
@@ -86,6 +88,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
             ensName: sessionResult.data.ensName,
             ensAvatar: sessionResult.data.ensAvatar,
             email: sessionResult.data.email,
+            displayName: sessionResult.data.displayName,
             isAuthenticated: true,
             accountType: sessionResult.data.accountType || "basic",
             authMethod: sessionResult.data.authMethod,
@@ -105,7 +108,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   };
 
   // Email/Password login
-  const loginWithEmail = async (email: string, password: string) => {
+  const loginWithEmail = async (email: string, password: string, displayName: string) => {
     try {
       const existingUsers = JSON.parse(localStorage.getItem("morphcash_users") || "{}");
       const userData = existingUsers[email.toLowerCase()];
@@ -113,6 +116,11 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       if (!userData || userData.password !== password) {
         throw new Error("Invalid email or password");
       }
+
+      // Always update display name
+      userData.displayName = displayName.trim();
+      existingUsers[email.toLowerCase()] = userData;
+      localStorage.setItem("morphcash_users", JSON.stringify(existingUsers));
 
       const sessionData = {
         userId: email.toLowerCase(),
@@ -128,6 +136,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         ensName: userData.ensName,
         ensAvatar: userData.ensAvatar,
         email: userData.email,
+        displayName: userData.displayName,
         isAuthenticated: true,
         accountType: userData.accountType || "basic",
         authMethod: "email",
@@ -143,7 +152,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     try {
       // Get user by ENS name from backend
       const result = await apiService.getUserByENS(ensName);
-      
+
       if (!result.success || !result.data) {
         throw new Error("ENS name not found. Please register first.");
       }
@@ -173,11 +182,14 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       // Create session with backend
       const sessionResult = await apiService.createSession(userData.id);
       if (sessionResult.success) {
-        localStorage.setItem("morphcash_session", JSON.stringify({
-          sessionId: sessionResult.data!.sessionId,
-          userId: userData.id,
-          expiresAt: sessionResult.data!.expiresAt,
-        }));
+        localStorage.setItem(
+          "morphcash_session",
+          JSON.stringify({
+            sessionId: sessionResult.data!.sessionId,
+            userId: userData.id,
+            expiresAt: sessionResult.data!.expiresAt,
+          }),
+        );
       }
     } catch (error) {
       console.error("Error during ENS login:", error);
@@ -186,10 +198,10 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   };
 
   // Email/Password registration
-  const registerWithEmail = async (email: string, password: string) => {
+  const registerWithEmail = async (email: string, password: string, displayName: string) => {
     try {
       const existingUsers = JSON.parse(localStorage.getItem("morphcash_users") || "{}");
-      
+
       if (existingUsers[email.toLowerCase()]) {
         throw new Error("Email already registered");
       }
@@ -199,6 +211,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         id: userId,
         email: email.toLowerCase(),
         password: password,
+        displayName: displayName.trim(),
         accountType: "basic",
         registeredAt: new Date().toISOString(),
         authMethod: "email",
@@ -218,6 +231,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       setUser({
         id: userData.id,
         email: userData.email,
+        displayName: userData.displayName,
         isAuthenticated: true,
         accountType: userData.accountType as "basic" | "premium" | "enterprise",
         authMethod: "email",
@@ -241,15 +255,16 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       // For now, we'll store it locally
       const existingUsers = JSON.parse(localStorage.getItem("morphcash_users") || "{}");
       const userId = `ens_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-      
-      const isWalletAuth = ensName.startsWith('wallet_');
+
+      const isWalletAuth = ensName.startsWith("wallet_");
       const authMethod = isWalletAuth ? "wallet" : "ens";
-      
+
       const userData = {
         id: userId,
         ensName: ensName.toLowerCase(),
-        address: isWalletAuth ? ensName.replace('wallet_', '') : undefined,
+        address: isWalletAuth ? ensName.replace("wallet_", "") : undefined,
         email: profileData.email || "",
+        displayName: profileData.displayName || `User ${userId.slice(-6)}`,
         accountType: "basic" as const,
         registeredAt: new Date().toISOString(),
         authMethod: authMethod,
@@ -265,6 +280,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         ensName: userData.ensName,
         ensAvatar: profileData.avatar,
         email: userData.email,
+        displayName: userData.displayName,
         isAuthenticated: true,
         accountType: userData.accountType,
         authMethod: authMethod,
@@ -286,10 +302,14 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         existingUsers[userData.id] = userData;
         localStorage.setItem("morphcash_users", JSON.stringify(existingUsers));
 
-        setUser(prev => prev ? {
-          ...prev,
-          ensProfile: { ...prev.ensProfile, ...profileData }
-        } : null);
+        setUser(prev =>
+          prev
+            ? {
+                ...prev,
+                ensProfile: { ...prev.ensProfile, ...profileData },
+              }
+            : null,
+        );
       }
     } catch (error) {
       console.error("Error updating ENS profile:", error);
@@ -308,6 +328,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
           ensName: userData.ensName,
           ensAvatar: userData.ensProfile?.avatar,
           email: userData.email,
+          displayName: userData.displayName,
           isAuthenticated: true,
           accountType: userData.accountType as "basic" | "premium" | "enterprise",
           authMethod: "ens",
@@ -316,6 +337,35 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       }
     } catch (error) {
       console.error("Error loading ENS profile:", error);
+    }
+  };
+
+  // Update display name
+  const updateDisplayName = async (displayName: string) => {
+    try {
+      if (!user) throw new Error("No user logged in");
+
+      const existingUsers = JSON.parse(localStorage.getItem("morphcash_users") || "{}");
+      const userKey = user.email || user.ensName || user.id;
+      const userData = existingUsers[userKey];
+
+      if (userData) {
+        userData.displayName = displayName.trim();
+        existingUsers[userKey] = userData;
+        localStorage.setItem("morphcash_users", JSON.stringify(existingUsers));
+
+        setUser(prev =>
+          prev
+            ? {
+                ...prev,
+                displayName: displayName.trim(),
+              }
+            : null,
+        );
+      }
+    } catch (error) {
+      console.error("Error updating display name:", error);
+      throw error;
     }
   };
 
@@ -332,6 +382,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
           ensName: userData.ensName,
           ensAvatar: userData.ensProfile?.avatar,
           email: userData.email,
+          displayName: userData.displayName,
           isAuthenticated: true,
           accountType: userData.accountType as "basic" | "premium" | "enterprise",
           authMethod: "wallet",
@@ -349,7 +400,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
           discord: "",
           telegram: "",
         };
-        
+
         await createENSProfile(`wallet_${walletAddress}`, profileData);
       }
     } catch (error) {
@@ -375,6 +426,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     createENSProfile,
     updateENSProfile,
     loadENSProfile,
+    updateDisplayName,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

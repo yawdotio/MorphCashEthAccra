@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { useAccount, useConnect, useDisconnect } from "wagmi";
+import { useAccount } from "wagmi";
 import { CheckCircleIcon, EnvelopeIcon, UserIcon, WalletIcon, XMarkIcon } from "@heroicons/react/24/outline";
 import { RainbowKitCustomConnectButton } from "~~/components/scaffold-eth";
 import { useAuth } from "~~/contexts/AuthContext";
@@ -21,6 +21,7 @@ export const LoginModal = ({ isOpen, onClose }: LoginModalProps) => {
   const [authMode, setAuthMode] = useState<AuthMode>("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [displayName, setDisplayName] = useState("");
   const [ensName, setEnsName] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
@@ -33,9 +34,9 @@ export const LoginModal = ({ isOpen, onClose }: LoginModalProps) => {
 
     try {
       if (authMode === "register") {
-        await registerWithEmail(email, password);
+        await registerWithEmail(email, password, displayName);
       } else {
-        await loginWithEmail(email, password);
+        await loginWithEmail(email, password, displayName);
       }
       setSuccess(true);
       setTimeout(() => {
@@ -92,6 +93,7 @@ export const LoginModal = ({ isOpen, onClose }: LoginModalProps) => {
   const resetForm = () => {
     setEmail("");
     setPassword("");
+    setDisplayName("");
     setEnsName("");
     setError("");
     setSuccess(false);
@@ -206,7 +208,7 @@ export const LoginModal = ({ isOpen, onClose }: LoginModalProps) => {
                         value={email}
                         onChange={e => setEmail(e.target.value)}
                         required
-                        className="block w-full rounded-md border-base-300 bg-base-100 text-base-content shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+                        className="block w-full h-12 px-3 rounded-md border-base-300 bg-base-100 text-base-content shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
                         placeholder="Enter your email address"
                       />
                     </div>
@@ -224,10 +226,31 @@ export const LoginModal = ({ isOpen, onClose }: LoginModalProps) => {
                         value={password}
                         onChange={e => setPassword(e.target.value)}
                         required
-                        className="block w-full rounded-md border-base-300 bg-base-100 text-base-content shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+                        className="block w-full h-12 px-3 rounded-md border-base-300 bg-base-100 text-base-content shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
                         placeholder="Enter your password"
                       />
                     </div>
+                  </div>
+
+                  <div className="mt-4">
+                    <label htmlFor="displayName" className="block text-sm font-medium text-base-content">
+                      Display Name
+                    </label>
+                    <div className="mt-1">
+                      <input
+                        type="text"
+                        name="displayName"
+                        id="displayName"
+                        value={displayName}
+                        onChange={e => setDisplayName(e.target.value)}
+                        required
+                        className="block w-full h-12 px-3 rounded-md border-base-300 bg-base-100 text-base-content shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+                        placeholder="Enter your display name"
+                      />
+                    </div>
+                    <p className="mt-1 text-xs text-base-content/70">
+                      This name will be displayed throughout the app instead of your email
+                    </p>
                   </div>
 
                   {authMode === "login" && (
@@ -237,7 +260,7 @@ export const LoginModal = ({ isOpen, onClose }: LoginModalProps) => {
                         onClick={() => switchMode("register")}
                         className="text-sm text-primary hover:text-primary/80"
                       >
-                        Don't have an account? Sign up
+                        Don&apos;t have an account? Sign up
                       </button>
                     </div>
                   )}
@@ -257,7 +280,7 @@ export const LoginModal = ({ isOpen, onClose }: LoginModalProps) => {
                   <div className="mt-5 sm:mt-4 sm:flex sm:flex-row-reverse">
                     <button
                       type="submit"
-                      disabled={isLoading || !email || !password}
+                      disabled={isLoading || !email || !password || !displayName}
                       className="inline-flex w-full justify-center rounded-md border border-transparent bg-primary px-4 py-2 text-base font-medium text-primary-content shadow-sm hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed sm:ml-3 sm:w-auto sm:text-sm"
                     >
                       {isLoading ? "Processing..." : authMode === "login" ? "Sign In" : "Sign Up"}
@@ -288,12 +311,12 @@ export const LoginModal = ({ isOpen, onClose }: LoginModalProps) => {
                         value={ensName}
                         onChange={e => setEnsName(e.target.value)}
                         required
-                        className="block w-full rounded-md border-base-300 bg-base-100 text-base-content shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+                        className="block w-full h-12 px-3 rounded-md border-base-300 bg-base-100 text-base-content shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
                         placeholder="Enter your ENS name (e.g., vitalik.eth)"
                       />
                     </div>
                     <p className="mt-1 text-xs text-base-content/70">
-                      Don't have an ENS name yet?{" "}
+                      Don&apos;t have an ENS name yet?{" "}
                       <button
                         type="button"
                         onClick={e => {

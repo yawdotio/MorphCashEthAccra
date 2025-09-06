@@ -27,7 +27,7 @@ const OverviewContent = () => {
   const { cards, isLoading: isCardsLoading } = useVirtualCards();
 
   // Get user display name and initial
-  const displayName = user?.ensProfile?.displayName || user?.ensName || user?.email || "User";
+  const displayName = user?.displayName || user?.ensProfile?.displayName || user?.ensName || user?.email || "User";
   const userInitial = displayName.charAt(0).toUpperCase();
   const accountType = user?.accountType || "basic";
 
