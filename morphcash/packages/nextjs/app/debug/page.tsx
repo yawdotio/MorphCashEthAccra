@@ -1,6 +1,5 @@
 import { DebugContracts } from "./_components/DebugContracts";
 import { TestAuth } from "~~/components/auth/TestAuth";
-import { VisaCardTest } from "~~/components/visa/VisaCardTest";
 import type { NextPage } from "next";
 import { getMetadata } from "~~/utils/scaffold-eth/getMetadata";
 
@@ -33,14 +32,6 @@ const Debug: NextPage = () => {
         <TestAuth />
       </div>
 
-      {/* Visa Card Test Section */}
-      <div className="mt-8 p-6 bg-white rounded-lg shadow-lg">
-        <h2 className="text-2xl font-bold mb-4 text-center">Visa Card Integration Test</h2>
-        <p className="text-gray-600 text-center mb-6">
-          Test the Visa B2B Virtual Account Payment Method API integration
-        </p>
-        <VisaCardTest />
-      </div>
     </>
   );
 };
