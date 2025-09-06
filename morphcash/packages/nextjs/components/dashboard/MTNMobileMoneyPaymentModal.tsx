@@ -123,11 +123,11 @@ export const MTNMobileMoneyPaymentModal = ({
   const getStatusText = () => {
     switch (paymentStatus) {
       case 'created':
-        return 'Payment initiated. Please complete on your mobile device.';
+        return 'Awaiting Payment - Please complete on your mobile device';
       case 'verifying':
-        return 'Verifying payment...';
+        return 'Verifying payment and creating your MorphCard...';
       case 'success':
-        return 'Payment completed successfully!';
+        return 'Payment completed! Your MorphCard is being created...';
       case 'failed':
         return 'Payment failed. Please try again.';
       default:

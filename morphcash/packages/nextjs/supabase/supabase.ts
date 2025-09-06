@@ -339,6 +339,17 @@ export class SupabaseDatabaseService {
       )
       .subscribe();
   }
+
+  // Virtual Cards
+  async getUserVirtualCards(userId: string) {
+    const { data, error } = await this.client
+      .from('virtual_cards')
+      .select('*')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false });
+    
+    return { success: !error, data, error: error?.message };
+  }
 }
 
 // Database connection test function

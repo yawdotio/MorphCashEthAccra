@@ -365,6 +365,24 @@ class UserService {
   clearUserCaches(userId: string): void {
     this.clearUserCache(userId);
   }
+
+  // Virtual Cards Management
+  async getUserVirtualCards(userId: string): Promise<DatabaseResponse<any[]>> {
+    const cacheKey = this.getCacheKey(`virtual-cards:${userId}`);
+    const cached = this.getCachedData<any[]>(cacheKey);
+    
+    if (cached) {
+      return { success: true, data: cached };
+    }
+
+    const result = await this.config.database.getUserVirtualCards(userId);
+    
+    if (result.success && result.data) {
+      this.setCachedData(cacheKey, result.data, 5 * 60 * 1000); // 5 minutes
+    }
+
+    return result;
+  }
 }
 
 export default UserService;

@@ -1,11 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { XMarkIcon, CreditCardIcon, InformationCircleIcon, CheckCircleIcon } from "@heroicons/react/24/outline";
-import { calculateFundingFee, formatCurrency, validateFundingAmount, getFeeInfo, getTotalWithFee } from "~~/utils/feeCalculation";
+import { XMarkIcon, CreditCardIcon, CheckCircleIcon, PhoneIcon, CurrencyDollarIcon } from "@heroicons/react/24/outline";
 import { generateExpiryDate, generateCardNumber, generateCardType } from "~~/utils/cardUtils";
-import { PaymentMethodModal } from "./PaymentMethodModal";
-import { MobileMoneyPaymentModal } from "./MobileMoneyPaymentModal";
 import { MTNMobileMoneyPaymentModal } from "./MTNMobileMoneyPaymentModal";
 import { CryptoPaymentModal } from "./CryptoPaymentModal";
 
@@ -29,55 +26,24 @@ export const CreateVirtualCardModal = ({ isOpen, onClose, onCreateCard }: Create
     cardName: "",
     cardNumber: generateCardNumber(),
     expiryDate: generateExpiryDate(),
-    cardType: generateCardType(),
+    cardType: "MorphCard",
     spendingLimit: 1000,
     fundingAmount: 100,
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [validationError, setValidationError] = useState<string | null>(null);
-  const [feeCalculation, setFeeCalculation] = useState(calculateFundingFee(100));
   const [showSuccess, setShowSuccess] = useState(false);
   
   // Payment workflow states
-  const [showPaymentMethod, setShowPaymentMethod] = useState(false);
-  const [showMobileMoney, setShowMobileMoney] = useState(false);
   const [showMTNMobileMoney, setShowMTNMobileMoney] = useState(false);
   const [showCryptoPayment, setShowCryptoPayment] = useState(false);
   const [ethAmount, setEthAmount] = useState(0);
   const [selectedCurrency, setSelectedCurrency] = useState<'GHS' | 'USD'>('GHS');
+  const [selectedFundingMethod, setSelectedFundingMethod] = useState<'momo' | 'crypto' | null>(null);
 
-  // Update fee calculation when funding amount changes
-  useEffect(() => {
-    const validation = validateFundingAmount(formData.fundingAmount);
-    if (validation.isValid) {
-      setValidationError(null);
-      setFeeCalculation(calculateFundingFee(formData.fundingAmount));
-    } else {
-      setValidationError(validation.error || null);
-    }
-  }, [formData.fundingAmount]);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleFundingMethodSelect = (method: 'momo' | 'crypto') => {
+    setSelectedFundingMethod(method);
     
-    // Validate funding amount before submitting
-    const validation = validateFundingAmount(formData.fundingAmount);
-    if (!validation.isValid) {
-      setValidationError(validation.error || null);
-      return;
-    }
-
-    // Show payment method selection instead of directly creating card
-    setShowPaymentMethod(true);
-  };
-
-  const handlePaymentMethodSelect = (method: 'mobile_money' | 'mtn_mobile_money' | 'crypto', currency: 'GHS' | 'USD') => {
-    setSelectedCurrency(currency);
-    setShowPaymentMethod(false);
-    
-    if (method === 'mobile_money') {
-      setShowMobileMoney(true);
-    } else if (method === 'mtn_mobile_money') {
+    if (method === 'momo') {
       setShowMTNMobileMoney(true);
     } else {
       setShowCryptoPayment(true);
@@ -94,13 +60,12 @@ export const CreateVirtualCardModal = ({ isOpen, onClose, onCreateCard }: Create
       await onCreateCard({
         ...formData,
         cardNumber: maskedNumber,
-        fundingAmount: feeCalculation.originalAmount,
-        feeAmount: feeCalculation.feeAmount,
-        totalAmount: feeCalculation.totalAmount,
+        fundingAmount: formData.fundingAmount,
+        feeAmount: 0, // No fees for now
+        totalAmount: formData.fundingAmount,
       });
       
       // Close payment modals
-      setShowMobileMoney(false);
       setShowMTNMobileMoney(false);
       setShowCryptoPayment(false);
       
@@ -113,10 +78,11 @@ export const CreateVirtualCardModal = ({ isOpen, onClose, onCreateCard }: Create
           cardName: "",
           cardNumber: generateCardNumber(),
           expiryDate: generateExpiryDate(),
-          cardType: generateCardType(),
+          cardType: "MorphCard",
           spendingLimit: 1000,
           fundingAmount: 100,
         });
+        setSelectedFundingMethod(null);
         setShowSuccess(false);
         onClose();
       }, 2000);
@@ -129,11 +95,10 @@ export const CreateVirtualCardModal = ({ isOpen, onClose, onCreateCard }: Create
 
   const handleClose = () => {
     // Reset all states
-    setShowPaymentMethod(false);
-    setShowMobileMoney(false);
     setShowMTNMobileMoney(false);
     setShowCryptoPayment(false);
     setShowSuccess(false);
+    setSelectedFundingMethod(null);
     onClose();
   };
 
@@ -144,7 +109,7 @@ export const CreateVirtualCardModal = ({ isOpen, onClose, onCreateCard }: Create
       <div className="flex min-h-screen items-center justify-center p-4 text-center sm:p-0">
         <div className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" onClick={onClose} />
         
-        <div className="relative transform overflow-hidden rounded-lg bg-white px-4 pb-4 pt-5 text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-lg sm:p-6">
+        <div className="relative transform overflow-hidden rounded-lg bg-white px-4 pb-4 pt-5 text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-2xl sm:p-6">
           <div className="absolute right-0 top-0 pr-4 pt-4">
             <button
               type="button"
@@ -165,134 +130,135 @@ export const CreateVirtualCardModal = ({ isOpen, onClose, onCreateCard }: Create
               </h3>
               <div className="mt-2">
                 <p className="text-sm text-gray-500">
-                  Create a new virtual card for secure online payments.
+                  Create a new MorphCard for secure online payments.
                 </p>
               </div>
 
-              <form onSubmit={handleSubmit} className="mt-4 space-y-4">
-                <div>
-                  <label htmlFor="cardName" className="block text-sm font-medium text-gray-700">
-                    Card Name
-                  </label>
-                  <input
-                    type="text"
-                    name="cardName"
-                    id="cardName"
-                    value={formData.cardName}
-                    onChange={(e) => setFormData({...formData, cardName: e.target.value})}
-                    required
-                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-purple-500 focus:ring-purple-500 sm:text-sm"
-                    placeholder="e.g., Shopping Card"
-                  />
-                </div>
-
-                <div>
-                  <label htmlFor="cardNumber" className="block text-sm font-medium text-gray-700">
-                    Card Number
-                  </label>
-                  <div className="mt-1 block w-full rounded-md border-gray-300 bg-gray-50 px-3 py-2 text-sm text-gray-600">
-                    {formData.cardNumber} (System Generated)
+              {/* Scrollable form content */}
+              <div className="mt-4 max-h-96 overflow-y-auto pr-2">
+                <form className="space-y-4">
+                  <div>
+                    <label htmlFor="cardName" className="block text-sm font-medium text-gray-700">
+                      Card Name
+                    </label>
+                    <input
+                      type="text"
+                      name="cardName"
+                      id="cardName"
+                      value={formData.cardName}
+                      onChange={(e) => setFormData({...formData, cardName: e.target.value})}
+                      required
+                      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-purple-500 focus:ring-purple-500 sm:text-sm"
+                      placeholder="e.g., Shopping Card"
+                    />
                   </div>
-                  <p className="mt-1 text-xs text-gray-500">
-                    Card number is automatically generated for security
-                  </p>
-                </div>
 
-                <div>
-                  <label htmlFor="cardType" className="block text-sm font-medium text-gray-700">
-                    Card Type
-                  </label>
-                  <div className="mt-1 block w-full rounded-md border-gray-300 bg-gray-50 px-3 py-2 text-sm text-gray-600">
-                    {formData.cardType} (System Generated)
+                  <div>
+                    <label htmlFor="fundingAmount" className="block text-sm font-medium text-gray-700">
+                      Funding Amount (₵)
+                    </label>
+                    <input
+                      type="number"
+                      name="fundingAmount"
+                      id="fundingAmount"
+                      value={formData.fundingAmount}
+                      onChange={(e) => setFormData({...formData, fundingAmount: parseFloat(e.target.value) || 0})}
+                      required
+                      min="1"
+                      step="0.01"
+                      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-purple-500 focus:ring-purple-500 sm:text-sm"
+                      placeholder="Enter amount to fund the card"
+                    />
                   </div>
-                  <p className="mt-1 text-xs text-gray-500">
-                    Card type is automatically assigned for optimal compatibility
-                  </p>
-                </div>
 
-                <div>
-                  <label htmlFor="expiryDate" className="block text-sm font-medium text-gray-700">
-                    Expiry Date
-                  </label>
-                  <div className="mt-1 block w-full rounded-md border-gray-300 bg-gray-50 px-3 py-2 text-sm text-gray-600">
-                    {formData.expiryDate} (System Generated)
+                  <div>
+                    <label htmlFor="spendingLimit" className="block text-sm font-medium text-gray-700">
+                      Spending Limit (₵)
+                    </label>
+                    <input
+                      type="number"
+                      name="spendingLimit"
+                      id="spendingLimit"
+                      value={formData.spendingLimit}
+                      onChange={(e) => setFormData({...formData, spendingLimit: parseInt(e.target.value) || 0})}
+                      required
+                      min="1"
+                      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-purple-500 focus:ring-purple-500 sm:text-sm"
+                    />
                   </div>
-                  <p className="mt-1 text-xs text-gray-500">
-                    Expiry date is automatically set to 3 years from now
-                  </p>
-                </div>
 
-                <div>
-                  <label htmlFor="fundingAmount" className="block text-sm font-medium text-gray-700">
-                    Funding Amount (₵)
-                  </label>
-                  <input
-                    type="number"
-                    name="fundingAmount"
-                    id="fundingAmount"
-                    value={formData.fundingAmount}
-                    onChange={(e) => setFormData({...formData, fundingAmount: parseFloat(e.target.value) || 0})}
-                    required
-                    min="1"
-                    step="0.01"
-                    className={`mt-1 block w-full rounded-md shadow-sm focus:border-purple-500 focus:ring-purple-500 sm:text-sm ${
-                      validationError ? 'border-red-300' : 'border-gray-300'
-                    }`}
-                    placeholder="Enter amount to fund the card"
-                  />
-                  {validationError && (
-                    <p className="mt-1 text-sm text-red-600">{validationError}</p>
-                  )}
-                </div>
-
-                {/* Fee Information */}
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                  <div className="flex">
-                    <InformationCircleIcon className="h-5 w-5 text-blue-400 mt-0.5 mr-3" />
-                    <div className="flex-1">
-                      <h4 className="text-sm font-medium text-blue-800">Funding Fee</h4>
-                      <div className="mt-2 space-y-1 text-sm text-blue-700">
-                        <p>Amount: {formatCurrency(feeCalculation.originalAmount)}</p>
-                        <p>{getFeeInfo(feeCalculation.originalAmount)}</p>
-                        <p className="font-semibold">{getTotalWithFee(feeCalculation.originalAmount)}</p>
+                  {/* Card Preview */}
+                  <div className="bg-gradient-to-br from-blue-100 to-purple-100 rounded-lg p-4">
+                    <h4 className="text-sm font-medium text-gray-700 mb-3">Card Preview</h4>
+                    <div className="w-full h-20 rounded-xl shadow-lg bg-gradient-to-br from-blue-500 to-purple-600">
+                      <div className="p-3 h-full flex flex-col justify-between text-white">
+                        <div className="flex justify-between items-start">
+                          <div className="w-6 h-6 bg-white/20 rounded-full flex items-center justify-center">
+                            <span className="text-xs font-bold">M</span>
+                          </div>
+                          <div className="w-2 h-2 rounded-full bg-green-400" />
+                        </div>
+                        <div className="text-right">
+                          <p className="text-xs opacity-80">Card Number</p>
+                          <p className="text-sm font-mono font-bold">
+                            {formData.cardNumber}
+                          </p>
+                        </div>
+                        <div className="text-xs opacity-90 truncate">
+                          {formData.cardName || "Card Name"}
+                        </div>
                       </div>
                     </div>
+                    <p className="text-xs text-gray-500 mt-2">
+                      Card details are automatically generated for security
+                    </p>
                   </div>
-                </div>
+                </form>
+              </div>
 
-                <div>
-                  <label htmlFor="spendingLimit" className="block text-sm font-medium text-gray-700">
-                    Spending Limit (₵)
-                  </label>
-                  <input
-                    type="number"
-                    name="spendingLimit"
-                    id="spendingLimit"
-                    value={formData.spendingLimit}
-                    onChange={(e) => setFormData({...formData, spendingLimit: parseInt(e.target.value) || 0})}
-                    required
-                    min="1"
-                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-purple-500 focus:ring-purple-500 sm:text-sm"
-                  />
-                </div>
-
-                <div className="mt-5 sm:mt-4 sm:flex sm:flex-row-reverse">
-                  <button
-                    type="submit"
-                    disabled={isSubmitting || !!validationError}
-                    className="inline-flex w-full justify-center rounded-md border border-transparent bg-purple-600 px-4 py-2 text-base font-medium text-white shadow-sm hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed sm:ml-3 sm:w-auto sm:text-sm"
-                  >
-                    {isSubmitting ? "Creating..." : `Fund Card (${getTotalWithFee(feeCalculation.originalAmount)})`}
-                  </button>
+              {/* Funding Method Selection */}
+              <div className="mt-6">
+                <h4 className="text-sm font-medium text-gray-700 mb-3">Choose Funding Method</h4>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <button
                     type="button"
-                    className="mt-3 inline-flex w-full justify-center rounded-md border border-gray-300 bg-white px-4 py-2 text-base font-medium text-gray-700 shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 sm:mt-0 sm:w-auto sm:text-sm"
-                    onClick={handleClose}
+                    onClick={() => handleFundingMethodSelect('momo')}
+                    className="relative rounded-lg border border-gray-300 bg-white px-6 py-4 text-left shadow-sm focus:outline-none focus:ring-2 focus:ring-purple-500 hover:bg-gray-50"
                   >
-                    Cancel
+                    <div className="flex items-center">
+                      <PhoneIcon className="h-8 w-8 text-orange-600" />
+                      <div className="ml-4">
+                        <h3 className="text-sm font-medium text-gray-900">MTN Mobile Money</h3>
+                        <p className="text-xs text-gray-500">Fund with MOMO</p>
+                      </div>
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleFundingMethodSelect('crypto')}
+                    className="relative rounded-lg border border-gray-300 bg-white px-6 py-4 text-left shadow-sm focus:outline-none focus:ring-2 focus:ring-purple-500 hover:bg-gray-50"
+                  >
+                    <div className="flex items-center">
+                      <CurrencyDollarIcon className="h-8 w-8 text-blue-600" />
+                      <div className="ml-4">
+                        <h3 className="text-sm font-medium text-gray-900">Crypto Payment</h3>
+                        <p className="text-xs text-gray-500">Fund with ETH/USD</p>
+                      </div>
+                    </div>
                   </button>
                 </div>
-              </form>
+              </div>
+
+              <div className="mt-6 sm:flex sm:flex-row-reverse">
+                <button
+                  type="button"
+                  className="mt-3 inline-flex w-full justify-center rounded-md border border-gray-300 bg-white px-4 py-2 text-base font-medium text-gray-700 shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 sm:mt-0 sm:w-auto sm:text-sm"
+                  onClick={handleClose}
+                >
+                  Cancel
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -311,19 +277,19 @@ export const CreateVirtualCardModal = ({ isOpen, onClose, onCreateCard }: Create
                 </div>
                 <div className="mt-3 text-center sm:ml-4 sm:mt-0 sm:text-left w-full">
                   <h3 className="text-lg font-medium leading-6 text-gray-900 mb-2">
-                    Card Created Successfully!
+                    MorphCard Created Successfully!
                   </h3>
                   <div className="mt-2">
                     <p className="text-sm text-gray-500 mb-4">
-                      Your virtual card has been created and is ready to use. Click on the card icon to view details.
+                      Your MorphCard has been created and is ready to use. Click on the card to view details.
                     </p>
                     
                     {/* Card Preview */}
-                    <div className="w-full h-20 rounded-xl shadow-lg mb-4 bg-gradient-to-br from-purple-600 to-blue-600">
+                    <div className="w-full h-20 rounded-xl shadow-lg mb-4 bg-gradient-to-br from-blue-500 to-purple-600">
                       <div className="p-3 h-full flex flex-col justify-between text-white">
                         <div className="flex justify-between items-start">
                           <div className="w-6 h-6 bg-white/20 rounded-full flex items-center justify-center">
-                            <span className="text-xs font-bold">C</span>
+                            <span className="text-xs font-bold">M</span>
                           </div>
                           <div className="w-2 h-2 rounded-full bg-green-400" />
                         </div>
@@ -350,35 +316,14 @@ export const CreateVirtualCardModal = ({ isOpen, onClose, onCreateCard }: Create
         </div>
       )}
 
-      {/* Payment Method Selection Modal */}
-      <PaymentMethodModal
-        isOpen={showPaymentMethod}
-        onClose={() => setShowPaymentMethod(false)}
-        onSelectPaymentMethod={handlePaymentMethodSelect}
-        fundingAmount={feeCalculation.originalAmount}
-        feeAmount={feeCalculation.feeAmount}
-        totalAmount={feeCalculation.totalAmount}
-      />
-
-      {/* Mobile Money Payment Modal */}
-      <MobileMoneyPaymentModal
-        isOpen={showMobileMoney}
-        onClose={() => setShowMobileMoney(false)}
-        onPaymentSuccess={handlePaymentSuccess}
-        fundingAmount={feeCalculation.originalAmount}
-        feeAmount={feeCalculation.feeAmount}
-        totalAmount={feeCalculation.totalAmount}
-        currency={selectedCurrency}
-      />
-
       {/* MTN Mobile Money Payment Modal */}
       <MTNMobileMoneyPaymentModal
         isOpen={showMTNMobileMoney}
         onClose={() => setShowMTNMobileMoney(false)}
         onPaymentSuccess={handlePaymentSuccess}
-        amount={feeCalculation.totalAmount}
+        amount={formData.fundingAmount}
         currency={selectedCurrency}
-        externalId={`CARD-${Date.now()}-${feeCalculation.totalAmount}`}
+        externalId={`CARD-${Date.now()}-${formData.fundingAmount}`}
       />
 
       {/* Crypto Payment Modal */}
@@ -386,9 +331,9 @@ export const CreateVirtualCardModal = ({ isOpen, onClose, onCreateCard }: Create
         isOpen={showCryptoPayment}
         onClose={() => setShowCryptoPayment(false)}
         onPaymentSuccess={handlePaymentSuccess}
-        fundingAmount={feeCalculation.originalAmount}
-        feeAmount={feeCalculation.feeAmount}
-        totalAmount={feeCalculation.totalAmount}
+        fundingAmount={formData.fundingAmount}
+        feeAmount={0}
+        totalAmount={formData.fundingAmount}
         ethAmount={ethAmount}
         currency={selectedCurrency}
       />
