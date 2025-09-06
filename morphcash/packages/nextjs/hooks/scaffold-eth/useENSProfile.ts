@@ -1,5 +1,5 @@
 import { useScaffoldReadContract, useScaffoldWriteContract } from "~~/hooks/scaffold-eth";
-import { keccak256, toUtf8Bytes } from "viem";
+import { keccak256, stringToBytes } from "viem";
 import { useAccount } from "wagmi";
 
 export interface UserProfile {
@@ -20,7 +20,7 @@ export const useENSProfile = (ensName?: string) => {
   const { address } = useAccount();
   
   // Convert ENS name to hash
-  const ensHash = ensName ? keccak256(toUtf8Bytes(ensName)) : undefined;
+  const ensHash = ensName ? keccak256(stringToBytes(ensName)) : undefined;
 
   // Read profile data
   const { data: profile, isLoading: isProfileLoading } = useScaffoldReadContract({

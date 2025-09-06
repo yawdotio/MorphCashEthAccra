@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useAuth } from "~~/contexts/AuthContext";
+import { useEnhancedAuth } from "~~/contexts/EnhancedAuthContext";
 import { XMarkIcon, UserIcon, PhotoIcon } from "@heroicons/react/24/outline";
 
 interface ENSProfileFormProps {
@@ -20,7 +20,7 @@ interface ENSProfileFormProps {
 }
 
 export const ENSProfileForm = ({ isOpen, onClose, initialData }: ENSProfileFormProps) => {
-  const { user, createENSProfile, updateENSProfile } = useAuth();
+  const { user, createENSProfile, updateENSProfile } = useEnhancedAuth();
   const [formData, setFormData] = useState({
     displayName: "",
     bio: "",

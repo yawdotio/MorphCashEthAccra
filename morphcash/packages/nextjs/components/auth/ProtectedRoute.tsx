@@ -1,6 +1,6 @@
 "use client";
 
-import { useAuth } from "~~/contexts/AuthContext";
+import { useEnhancedAuth } from "~~/contexts/EnhancedAuthContext";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, ReactNode } from "react";
 import { LoginModal } from "./LoginModal";
@@ -11,7 +11,7 @@ interface ProtectedRouteProps {
 }
 
 export const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
-  const { user, isLoading } = useAuth();
+  const { user, isLoading } = useEnhancedAuth();
   const router = useRouter();
   const [showLoginModal, setShowLoginModal] = useState(false);
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useAuth } from "~~/contexts/AuthContext";
+import { useEnhancedAuth } from "~~/contexts/EnhancedAuthContext";
 import { useAccount } from "wagmi";
 import { useRouter } from "next/navigation";
 import { XMarkIcon, CheckCircleIcon, UserIcon, ExclamationTriangleIcon } from "@heroicons/react/24/outline";
@@ -15,7 +15,7 @@ interface ENSRegistrationProps {
 }
 
 export const ENSRegistration = ({ isOpen, onClose }: ENSRegistrationProps) => {
-  const { registerWithEmail } = useAuth();
+  const { registerWithEmail } = useEnhancedAuth();
   const { address, isConnected } = useAccount();
   const router = useRouter();
   const [ensName, setEnsName] = useState("");
@@ -81,12 +81,11 @@ export const ENSRegistration = ({ isOpen, onClose }: ENSRegistrationProps) => {
     try {
       // Create user profile with backend service
       const userProfile = {
-        ensName: ensName.toLowerCase(),
+        ens_name: ensName.toLowerCase(),
         email: email.toLowerCase(),
         address: ensInfo?.ownerAddress,
-        accountType: "basic" as const,
-        authMethod: "ens" as const,
-        ensProfile: {
+        auth_method: "ens" as const,
+        ens_profile: {
           displayName: ensName.split('.')[0], // Use ENS name as display name
           bio: `ENS profile for ${ensName}`,
           avatar: "",

@@ -16,18 +16,24 @@ export interface VirtualCard {
 export const useVirtualCards = () => {
   const { address } = useAccount();
 
-  // Read user's virtual cards
+  // Read user's virtual cards - only call when address is available
   const { data: cards, isLoading: isCardsLoading, refetch: refetchCards, error: cardsError } = useScaffoldReadContract({
     contractName: "VirtualCardContract",
     functionName: "getUserVirtualCards",
-    args: [address || ""],
+    args: address ? [address] : [undefined],
+    query: {
+      enabled: !!address, // Only run query when address is available
+    },
   });
 
-  // Read user's card count
+  // Read user's card count - only call when address is available
   const { data: cardCount } = useScaffoldReadContract({
     contractName: "VirtualCardContract",
     functionName: "getUserCardCount",
-    args: [address || ""],
+    args: address ? [address] : [undefined],
+    query: {
+      enabled: !!address, // Only run query when address is available
+    },
   });
 
   // Write functions

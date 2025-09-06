@@ -10,8 +10,7 @@ export interface UserProfile {
   ensName?: string;
   ensAvatar?: string;
   email?: string;
-  accountType: "basic" | "premium" | "enterprise";
-  authMethod: "ens" | "email" | "wallet";
+  auth_method: "ens" | "email" | "wallet";
   ensProfile?: {
     displayName: string;
     bio: string;

@@ -30,7 +30,6 @@ export interface BankAccountData {
   id: string;
   accountNumber: string; // Encrypted
   routingNumber: string; // Encrypted
-  accountType: string; // Checking, Savings
   bankName: string;
   accountHolderName: string;
   isDefault: boolean;

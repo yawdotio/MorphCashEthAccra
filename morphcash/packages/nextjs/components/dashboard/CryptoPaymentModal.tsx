@@ -10,6 +10,7 @@ import {
   ClipboardDocumentIcon
 } from "@heroicons/react/24/outline";
 import { paymentService, SupportedCurrency } from "~~/services/paymentService";
+import { useCopyToClipboard } from "~~/hooks/scaffold-eth";
 
 interface CryptoPaymentModalProps {
   isOpen: boolean;
@@ -47,6 +48,7 @@ export const CryptoPaymentModal = ({
   const [paymentReference, setPaymentReference] = useState('');
   const [timeRemaining, setTimeRemaining] = useState(900); // 15 minutes in seconds
   const [copied, setCopied] = useState(false);
+  const { copyToClipboard } = useCopyToClipboard();
 
   // Generate payment address and reference
   useEffect(() => {
@@ -130,7 +132,7 @@ export const CryptoPaymentModal = ({
 
   const handleCopyAddress = async () => {
     try {
-      await navigator.clipboard.writeText(paymentAddress);
+      copyToClipboard(paymentAddress);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch (error) {
@@ -140,7 +142,7 @@ export const CryptoPaymentModal = ({
 
   const handleCopyAmount = async () => {
     try {
-      await navigator.clipboard.writeText(ethAmount.toString());
+      copyToClipboard(ethAmount.toString());
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch (error) {

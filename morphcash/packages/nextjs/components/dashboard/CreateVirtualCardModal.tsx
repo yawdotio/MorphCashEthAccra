@@ -6,6 +6,7 @@ import { calculateFundingFee, formatCurrency, validateFundingAmount, getFeeInfo,
 import { generateExpiryDate, generateCardNumber, generateCardType } from "~~/utils/cardUtils";
 import { PaymentMethodModal } from "./PaymentMethodModal";
 import { MobileMoneyPaymentModal } from "./MobileMoneyPaymentModal";
+import { MTNMobileMoneyPaymentModal } from "./MTNMobileMoneyPaymentModal";
 import { CryptoPaymentModal } from "./CryptoPaymentModal";
 
 interface CreateVirtualCardModalProps {
@@ -40,6 +41,7 @@ export const CreateVirtualCardModal = ({ isOpen, onClose, onCreateCard }: Create
   // Payment workflow states
   const [showPaymentMethod, setShowPaymentMethod] = useState(false);
   const [showMobileMoney, setShowMobileMoney] = useState(false);
+  const [showMTNMobileMoney, setShowMTNMobileMoney] = useState(false);
   const [showCryptoPayment, setShowCryptoPayment] = useState(false);
   const [ethAmount, setEthAmount] = useState(0);
   const [selectedCurrency, setSelectedCurrency] = useState<'GHS' | 'USD'>('GHS');
@@ -69,12 +71,14 @@ export const CreateVirtualCardModal = ({ isOpen, onClose, onCreateCard }: Create
     setShowPaymentMethod(true);
   };
 
-  const handlePaymentMethodSelect = (method: 'mobile_money' | 'crypto', currency: 'GHS' | 'USD') => {
+  const handlePaymentMethodSelect = (method: 'mobile_money' | 'mtn_mobile_money' | 'crypto', currency: 'GHS' | 'USD') => {
     setSelectedCurrency(currency);
     setShowPaymentMethod(false);
     
     if (method === 'mobile_money') {
       setShowMobileMoney(true);
+    } else if (method === 'mtn_mobile_money') {
+      setShowMTNMobileMoney(true);
     } else {
       setShowCryptoPayment(true);
     }
@@ -97,6 +101,7 @@ export const CreateVirtualCardModal = ({ isOpen, onClose, onCreateCard }: Create
       
       // Close payment modals
       setShowMobileMoney(false);
+      setShowMTNMobileMoney(false);
       setShowCryptoPayment(false);
       
       // Show success state
@@ -126,6 +131,7 @@ export const CreateVirtualCardModal = ({ isOpen, onClose, onCreateCard }: Create
     // Reset all states
     setShowPaymentMethod(false);
     setShowMobileMoney(false);
+    setShowMTNMobileMoney(false);
     setShowCryptoPayment(false);
     setShowSuccess(false);
     onClose();
@@ -363,6 +369,16 @@ export const CreateVirtualCardModal = ({ isOpen, onClose, onCreateCard }: Create
         feeAmount={feeCalculation.feeAmount}
         totalAmount={feeCalculation.totalAmount}
         currency={selectedCurrency}
+      />
+
+      {/* MTN Mobile Money Payment Modal */}
+      <MTNMobileMoneyPaymentModal
+        isOpen={showMTNMobileMoney}
+        onClose={() => setShowMTNMobileMoney(false)}
+        onPaymentSuccess={handlePaymentSuccess}
+        amount={feeCalculation.totalAmount}
+        currency={selectedCurrency}
+        externalId={`CARD-${Date.now()}-${feeCalculation.totalAmount}`}
       />
 
       {/* Crypto Payment Modal */}

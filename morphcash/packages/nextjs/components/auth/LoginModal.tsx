@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useAuth } from "~~/contexts/AuthContext";
+import { useEnhancedAuth } from "~~/contexts/EnhancedAuthContext";
 import { useAccount, useConnect, useDisconnect } from "wagmi";
 import { useRouter } from "next/navigation";
 import { XMarkIcon, CheckCircleIcon, UserIcon, EnvelopeIcon, WalletIcon } from "@heroicons/react/24/outline";
@@ -15,7 +15,7 @@ interface LoginModalProps {
 type AuthMode = "login" | "register" | "ens" | "wallet";
 
 export const LoginModal = ({ isOpen, onClose }: LoginModalProps) => {
-  const { loginWithEmail, loginWithENS, loginWithWallet, registerWithEmail } = useAuth();
+  const { loginWithEmail, loginWithENS, loginWithWallet, registerWithEmail } = useEnhancedAuth();
   const { address, isConnected } = useAccount();
   const router = useRouter();
   const [authMode, setAuthMode] = useState<AuthMode>("login");
@@ -33,7 +33,7 @@ export const LoginModal = ({ isOpen, onClose }: LoginModalProps) => {
 
     try {
       if (authMode === "register") {
-        await registerWithEmail(email, password);
+        await registerWithEmail(email, password, password); // Using same password for confirm
       } else {
         await loginWithEmail(email, password);
       }

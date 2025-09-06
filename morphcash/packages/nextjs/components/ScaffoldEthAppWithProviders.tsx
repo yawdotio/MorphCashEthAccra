@@ -12,7 +12,7 @@ import { Header } from "~~/components/Header";
 import { BlockieAvatar } from "~~/components/scaffold-eth";
 import { useInitializeNativeCurrencyPrice } from "~~/hooks/scaffold-eth";
 import { wagmiConfig } from "~~/services/web3/wagmiConfig";
-import { AuthProvider } from "~~/contexts/AuthContext";
+import { EnhancedAuthProvider } from "~~/contexts/EnhancedAuthContext";
 
 const ScaffoldEthApp = ({ children }: { children: React.ReactNode }) => {
   useInitializeNativeCurrencyPrice();
@@ -55,10 +55,10 @@ export const ScaffoldEthAppWithProviders = ({ children }: { children: React.Reac
           initialChain={undefined}
           showRecentTransactions={false}
         >
-          <AuthProvider>
+          <EnhancedAuthProvider>
             <ProgressBar height="3px" color="#2299dd" />
             <ScaffoldEthApp>{children}</ScaffoldEthApp>
-          </AuthProvider>
+          </EnhancedAuthProvider>
         </RainbowKitProvider>
       </QueryClientProvider>
     </WagmiProvider>
