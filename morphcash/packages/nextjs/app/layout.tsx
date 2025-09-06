@@ -11,6 +11,8 @@ export const metadata = getMetadata({
 
 const ScaffoldEthApp = ({ children }: { children: React.ReactNode }) => {
   return (
+
+    <html suppressHydrationWarning>
     <html suppressHydrationWarning className={``}>
       <head>
         {/* MTN Mobile Money Widget Script */}
@@ -20,7 +22,7 @@ const ScaffoldEthApp = ({ children }: { children: React.ReactNode }) => {
         />
       </head>
       <body>
-        <ThemeProvider enableSystem>
+        <ThemeProvider enableSystem attribute="data-theme">
           <ScaffoldEthAppWithProviders>{children}</ScaffoldEthAppWithProviders>
         </ThemeProvider>
       </body>

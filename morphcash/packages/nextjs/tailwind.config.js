@@ -11,7 +11,7 @@ module.exports = {
         light: {
           primary: "#8b5cf6",
           "primary-content": "#ffffff",
-          secondary: "#6366f1", 
+          secondary: "#6366f1",
           "secondary-content": "#ffffff",
           accent: "#f59e0b",
           "accent-content": "#ffffff",
@@ -44,7 +44,7 @@ module.exports = {
           primary: "#8b5cf6",
           "primary-content": "#ffffff",
           secondary: "#6366f1",
-          "secondary-content": "#ffffff", 
+          "secondary-content": "#ffffff",
           accent: "#f59e0b",
           "accent-content": "#ffffff",
           neutral: "#1f2937",
@@ -54,7 +54,7 @@ module.exports = {
           "base-300": "#374151",
           "base-content": "#d1d5db",
           info: "#0ea5e9",
-          success: "#10b981", 
+          success: "#10b981",
           warning: "#f59e0b",
           error: "#ef4444",
 

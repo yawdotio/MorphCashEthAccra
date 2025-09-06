@@ -1,10 +1,10 @@
 "use client";
 
-import React, { createContext, useContext, useEffect, useState, ReactNode } from "react";
+import React, { ReactNode, createContext, useContext, useEffect, useState } from "react";
 import { useAccount, useDisconnect } from "wagmi";
-import { useEnsName, useEnsAvatar } from "wagmi";
+import { useEnsAvatar, useEnsName } from "wagmi";
 import { useENSProfile } from "~~/hooks/scaffold-eth/useENSProfile";
-import { supabaseDatabase } from "~~/supabase/supabase";
+import { apiService } from "~~/services/backendService";
 import { verifyENSOwnership } from "~~/utils/ensVerification";
 
 interface User {
@@ -13,8 +13,10 @@ interface User {
   ensName?: string;
   ensAvatar?: string;
   email?: string;
+  displayName?: string;
   isAuthenticated: boolean;
-  auth_method: "ens" | "email" | "wallet";
+  accountType: "basic" | "premium" | "enterprise";
+  authMethod: "ens" | "email" | "wallet";
   ensProfile?: {
     displayName: string;
     bio: string;
@@ -30,15 +32,16 @@ interface User {
 interface AuthContextType {
   user: User | null;
   isLoading: boolean;
-  loginWithEmail: (email: string, password: string) => Promise<void>;
+  loginWithEmail: (email: string, password: string, displayName: string) => Promise<void>;
   loginWithENS: (ensName: string) => Promise<void>;
   loginWithWallet: (address: string) => Promise<void>;
-  registerWithEmail: (email: string, password: string) => Promise<void>;
+  registerWithEmail: (email: string, password: string, displayName: string) => Promise<void>;
   logout: () => void;
   checkUserExists: (identifier: string, method: "ens" | "email") => Promise<boolean>;
   createENSProfile: (ensName: string, profileData: any) => Promise<void>;
   updateENSProfile: (ensName: string, profileData: any) => Promise<void>;
   loadENSProfile: (ensName: string) => Promise<void>;
+  updateDisplayName: (displayName: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -55,13 +58,13 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   // Check if user exists in the system
   const checkUserExists = async (identifier: string, method: "ens" | "email"): Promise<boolean> => {
     try {
-      let result;
+      const existingUsers = JSON.parse(localStorage.getItem("morphcash_users") || "{}");
       if (method === "email") {
-        result = await supabaseDatabase.getUserByEmail(identifier);
+        return !!existingUsers[identifier.toLowerCase()];
       } else {
-        result = await supabaseDatabase.getUserByENS(identifier);
+        // For ENS, check by ensName field
+        return Object.values(existingUsers).some((user: any) => user.ensName === identifier);
       }
-      return result.success && !!result.data;
     } catch (error) {
       console.error("Error checking user existence:", error);
       return false;
@@ -74,36 +77,23 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       const sessionData = localStorage.getItem("morphcash_session");
       if (sessionData) {
         const session = JSON.parse(sessionData);
-        
+
         // Validate session with backend
-        const sessionResult = await supabaseDatabase.getSession(session.sessionId);
-        
+        const sessionResult = await apiService.validateSession(session.sessionId);
+
         if (sessionResult.success && sessionResult.data) {
-          // Check if session is expired
-          const now = new Date();
-          const expiresAt = new Date(sessionResult.data.expires_at);
-          
-          if (now > expiresAt) {
-            // Session expired, clear it
-            await supabaseDatabase.deleteSession(session.sessionId);
-            localStorage.removeItem("morphcash_session");
-          } else {
-            // Get user data
-            const userResult = await supabaseDatabase.getUser(sessionResult.data.user_id);
-            
-            if (userResult.success && userResult.data) {
-              setUser({
-                id: userResult.data.id,
-                address: userResult.data.address,
-                ensName: userResult.data.ens_name,
-                ensAvatar: userResult.data.ens_avatar,
-                email: userResult.data.email,
-                isAuthenticated: true,
-                auth_method: userResult.data.auth_method,
-                ensProfile: userResult.data.ens_profile,
-              });
-            }
-          }
+          setUser({
+            id: sessionResult.data.id,
+            address: sessionResult.data.address,
+            ensName: sessionResult.data.ensName,
+            ensAvatar: sessionResult.data.ensAvatar,
+            email: sessionResult.data.email,
+            displayName: sessionResult.data.displayName,
+            isAuthenticated: true,
+            accountType: sessionResult.data.accountType || "basic",
+            authMethod: sessionResult.data.authMethod,
+            ensProfile: sessionResult.data.ensProfile,
+          });
         } else {
           // Session invalid, clear it
           localStorage.removeItem("morphcash_session");
@@ -118,45 +108,41 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   };
 
   // Email/Password login
-  const loginWithEmail = async (email: string, password: string) => {
+  const loginWithEmail = async (email: string, password: string, displayName?: string) => {
     try {
-      const result = await supabaseDatabase.getUserByEmail(email);
-      
-      if (!result.success || !result.data) {
+      const existingUsers = JSON.parse(localStorage.getItem("morphcash_users") || "{}");
+      const userData = existingUsers[email.toLowerCase()];
+
+      if (!userData || userData.password !== password) {
         throw new Error("Invalid email or password");
       }
 
-      // For now, we'll use a simple password check
-      // In production, you'd use proper password hashing
-      const userData = result.data;
-
-      // Create session
-      const sessionResult = await supabaseDatabase.createSession(
-        userData.id,
-        `email_${Date.now()}`,
-        new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString() // 7 days
-      );
-
-      if (sessionResult.success && sessionResult.data) {
-        localStorage.setItem("morphcash_session", JSON.stringify({
-          sessionId: sessionResult.data.id,
-          userId: userData.id,
-          expiresAt: sessionResult.data.expires_at,
-        }));
-
-        setUser({
-          id: userData.id,
-          address: userData.address,
-          ensName: userData.ens_name,
-          ensAvatar: userData.ens_avatar,
-          email: userData.email,
-          isAuthenticated: true,
-          auth_method: "email",
-          ensProfile: userData.ens_profile,
-        });
-      } else {
-        throw new Error("Failed to create session");
+      // Update display name if provided
+      if (displayName && displayName.trim()) {
+        userData.displayName = displayName.trim();
+        existingUsers[email.toLowerCase()] = userData;
+        localStorage.setItem("morphcash_users", JSON.stringify(existingUsers));
       }
+
+      const sessionData = {
+        userId: email.toLowerCase(),
+        authMethod: "email",
+        loginTime: new Date().toISOString(),
+      };
+
+      localStorage.setItem("morphcash_session", JSON.stringify(sessionData));
+
+      setUser({
+        id: userData.id,
+        address: userData.address,
+        ensName: userData.ensName,
+        ensAvatar: userData.ensAvatar,
+        email: userData.email,
+        displayName: userData.displayName,
+        isAuthenticated: true,
+        accountType: userData.accountType || "basic",
+        authMethod: "email",
+      });
     } catch (error) {
       console.error("Error during email login:", error);
       throw error;
@@ -166,8 +152,9 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   // ENS login
   const loginWithENS = async (ensName: string) => {
     try {
-      const result = await supabaseDatabase.getUserByENS(ensName);
-      
+      // Get user by ENS name from backend
+      const result = await apiService.getUserByENS(ensName);
+
       if (!result.success || !result.data) {
         throw new Error("ENS name not found. Please register first.");
       }
@@ -182,32 +169,29 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         }
       }
 
-      // Create session
-      const sessionResult = await supabaseDatabase.createSession(
-        userData.id,
-        `ens_${Date.now()}`,
-        new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString() // 7 days
-      );
+      setUser({
+        id: userData.id,
+        address: userData.address,
+        ensName: userData.ensName,
+        ensAvatar: userData.ensAvatar,
+        email: userData.email,
+        isAuthenticated: true,
+        accountType: userData.accountType || "basic",
+        authMethod: "ens",
+        ensProfile: userData.ensProfile,
+      });
 
-      if (sessionResult.success && sessionResult.data) {
-        localStorage.setItem("morphcash_session", JSON.stringify({
-          sessionId: sessionResult.data.id,
-          userId: userData.id,
-          expiresAt: sessionResult.data.expires_at,
-        }));
-
-        setUser({
-          id: userData.id,
-          address: userData.address,
-          ensName: userData.ens_name,
-          ensAvatar: userData.ens_avatar,
-          email: userData.email,
-          isAuthenticated: true,
-          authMethod: "ens",
-          ensProfile: userData.ens_profile,
-        });
-      } else {
-        throw new Error("Failed to create session");
+      // Create session with backend
+      const sessionResult = await apiService.createSession(userData.id);
+      if (sessionResult.success) {
+        localStorage.setItem(
+          "morphcash_session",
+          JSON.stringify({
+            sessionId: sessionResult.data!.sessionId,
+            userId: userData.id,
+            expiresAt: sessionResult.data!.expiresAt,
+          }),
+        );
       }
     } catch (error) {
       console.error("Error during ENS login:", error);
@@ -216,47 +200,44 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   };
 
   // Email/Password registration
-  const registerWithEmail = async (email: string, password: string) => {
+  const registerWithEmail = async (email: string, password: string, displayName?: string) => {
     try {
-      // Check if user already exists
-      const exists = await checkUserExists(email, "email");
-      if (exists) {
+      const existingUsers = JSON.parse(localStorage.getItem("morphcash_users") || "{}");
+
+      if (existingUsers[email.toLowerCase()]) {
         throw new Error("Email already registered");
       }
 
-      // Create new user
-      const result = await supabaseDatabase.createUser({
+      const userId = `email_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      const userData = {
+        id: userId,
         email: email.toLowerCase(),
-        auth_method: "email",
+        password: password,
+        displayName: displayName?.trim() || "",
+        accountType: "basic",
+        registeredAt: new Date().toISOString(),
+        authMethod: "email",
+      };
+
+      existingUsers[email.toLowerCase()] = userData;
+      localStorage.setItem("morphcash_users", JSON.stringify(existingUsers));
+
+      const sessionData = {
+        userId: email.toLowerCase(),
+        authMethod: "email",
+        loginTime: new Date().toISOString(),
+      };
+
+      localStorage.setItem("morphcash_session", JSON.stringify(sessionData));
+
+      setUser({
+        id: userData.id,
+        email: userData.email,
+        displayName: userData.displayName,
+        isAuthenticated: true,
+        accountType: userData.accountType as "basic" | "premium" | "enterprise",
+        authMethod: "email",
       });
-
-      if (!result.success || !result.data) {
-        throw new Error("Failed to create user");
-      }
-
-      // Create session
-      const sessionResult = await supabaseDatabase.createSession(
-        result.data.id,
-        `email_${Date.now()}`,
-        new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString() // 7 days
-      );
-
-      if (sessionResult.success && sessionResult.data) {
-        localStorage.setItem("morphcash_session", JSON.stringify({
-          sessionId: sessionResult.data.id,
-          userId: result.data.id,
-          expiresAt: sessionResult.data.expires_at,
-        }));
-
-        setUser({
-          id: result.data.id,
-          email: result.data.email,
-          isAuthenticated: true,
-          auth_method: "email",
-        });
-      } else {
-        throw new Error("Failed to create session");
-      }
     } catch (error) {
       console.error("Error during email registration:", error);
       throw error;
@@ -264,69 +245,47 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   };
 
   // Logout function
-  const logout = async () => {
-    try {
-      const sessionData = localStorage.getItem("morphcash_session");
-      if (sessionData) {
-        const session = JSON.parse(sessionData);
-        if (session.sessionId) {
-          await supabaseDatabase.deleteSession(session.sessionId);
-        }
-      }
-    } catch (error) {
-      console.error("Error during logout:", error);
-    } finally {
-      setUser(null);
-      localStorage.removeItem("morphcash_session");
-    }
+  const logout = () => {
+    setUser(null);
+    localStorage.removeItem("morphcash_session");
   };
 
   // ENS Profile Functions
   const createENSProfile = async (ensName: string, profileData: any) => {
     try {
-      const isWalletAuth = ensName.startsWith('wallet_');
+      // This would integrate with your smart contract
+      // For now, we'll store it locally
+      const existingUsers = JSON.parse(localStorage.getItem("morphcash_users") || "{}");
+      const userId = `ens_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+      const isWalletAuth = ensName.startsWith("wallet_");
       const authMethod = isWalletAuth ? "wallet" : "ens";
-      const address = isWalletAuth ? ensName.replace('wallet_', '') : undefined;
-      
-      // Create new user
-      const result = await supabaseDatabase.createUser({
-        address,
-        ens_name: ensName.toLowerCase(),
-        auth_method: authMethod as "ens" | "wallet",
-        ens_profile: profileData,
+
+      const userData = {
+        id: userId,
+        ensName: ensName.toLowerCase(),
+        address: isWalletAuth ? ensName.replace("wallet_", "") : undefined,
+        email: profileData.email || "",
+        accountType: "basic" as const,
+        registeredAt: new Date().toISOString(),
+        authMethod: authMethod,
+        ensProfile: profileData,
+      };
+
+      existingUsers[userId] = userData;
+      localStorage.setItem("morphcash_users", JSON.stringify(existingUsers));
+
+      setUser({
+        id: userData.id,
+        address: userData.address,
+        ensName: userData.ensName,
+        ensAvatar: profileData.avatar,
+        email: userData.email,
+        isAuthenticated: true,
+        accountType: userData.accountType,
+        authMethod: authMethod,
+        ensProfile: profileData,
       });
-
-      if (!result.success || !result.data) {
-        throw new Error("Failed to create ENS profile");
-      }
-
-      // Create session
-      const sessionResult = await supabaseDatabase.createSession(
-        result.data.id,
-        `${authMethod}_${Date.now()}`,
-        new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString() // 7 days
-      );
-
-      if (sessionResult.success && sessionResult.data) {
-        localStorage.setItem("morphcash_session", JSON.stringify({
-          sessionId: sessionResult.data.id,
-          userId: result.data.id,
-          expiresAt: sessionResult.data.expires_at,
-        }));
-
-        setUser({
-          id: result.data.id,
-          address: result.data.address,
-          ensName: result.data.ens_name,
-          ensAvatar: profileData.avatar,
-          email: result.data.email,
-          isAuthenticated: true,
-          auth_method: authMethod as "ens" | "wallet",
-          ensProfile: profileData,
-        });
-      } else {
-        throw new Error("Failed to create session");
-      }
     } catch (error) {
       console.error("Error creating ENS profile:", error);
       throw error;
@@ -335,21 +294,22 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
   const updateENSProfile = async (ensName: string, profileData: any) => {
     try {
-      if (!user) {
-        throw new Error("User not logged in");
-      }
+      const existingUsers = JSON.parse(localStorage.getItem("morphcash_users") || "{}");
+      const userData = Object.values(existingUsers).find((user: any) => user.ensName === ensName) as any;
 
-      const result = await supabaseDatabase.updateUser(user.id, {
-        ens_profile: { ...user.ensProfile, ...profileData },
-      });
+      if (userData) {
+        userData.ensProfile = { ...userData.ensProfile, ...profileData };
+        existingUsers[userData.id] = userData;
+        localStorage.setItem("morphcash_users", JSON.stringify(existingUsers));
 
-      if (result.success && result.data) {
-        setUser(prev => prev ? {
-          ...prev,
-          ensProfile: { ...prev.ensProfile, ...profileData }
-        } : null);
-      } else {
-        throw new Error("Failed to update ENS profile");
+        setUser(prev =>
+          prev
+            ? {
+                ...prev,
+                ensProfile: { ...prev.ensProfile, ...profileData },
+              }
+            : null,
+        );
       }
     } catch (error) {
       console.error("Error updating ENS profile:", error);
@@ -359,78 +319,74 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
   const loadENSProfile = async (ensName: string) => {
     try {
-      const result = await supabaseDatabase.getUserByENS(ensName);
-      
-      if (result.success && result.data) {
-        const userData = result.data;
-        
-        // Create session
-        const sessionResult = await supabaseDatabase.createSession(
-          userData.id,
-          `ens_${Date.now()}`,
-          new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString() // 7 days
-        );
+      const existingUsers = JSON.parse(localStorage.getItem("morphcash_users") || "{}");
+      const userData = Object.values(existingUsers).find((user: any) => user.ensName === ensName) as any;
 
-        if (sessionResult.success && sessionResult.data) {
-          localStorage.setItem("morphcash_session", JSON.stringify({
-            sessionId: sessionResult.data.id,
-            userId: userData.id,
-            expiresAt: sessionResult.data.expires_at,
-          }));
-
-          setUser({
-            id: userData.id,
-            address: userData.address,
-            ensName: userData.ens_name,
-            ensAvatar: userData.ens_avatar,
-            email: userData.email,
-            isAuthenticated: true,
-            authMethod: "ens",
-            ensProfile: userData.ens_profile,
-          });
-        }
-      } else {
-        throw new Error("ENS profile not found");
+      if (userData) {
+        setUser({
+          id: userData.id,
+          ensName: userData.ensName,
+          ensAvatar: userData.ensProfile?.avatar,
+          email: userData.email,
+          displayName: userData.displayName,
+          isAuthenticated: true,
+          accountType: userData.accountType as "basic" | "premium" | "enterprise",
+          authMethod: "ens",
+          ensProfile: userData.ensProfile,
+        });
       }
     } catch (error) {
       console.error("Error loading ENS profile:", error);
+    }
+  };
+
+  // Update display name
+  const updateDisplayName = async (displayName: string) => {
+    try {
+      if (!user) throw new Error("No user logged in");
+
+      const existingUsers = JSON.parse(localStorage.getItem("morphcash_users") || "{}");
+      const userKey = user.email || user.ensName || user.id;
+      const userData = existingUsers[userKey];
+
+      if (userData) {
+        userData.displayName = displayName.trim();
+        existingUsers[userKey] = userData;
+        localStorage.setItem("morphcash_users", JSON.stringify(existingUsers));
+
+        setUser(prev =>
+          prev
+            ? {
+                ...prev,
+                displayName: displayName.trim(),
+              }
+            : null,
+        );
+      }
+    } catch (error) {
+      console.error("Error updating display name:", error);
       throw error;
     }
   };
 
   const loginWithWallet = async (walletAddress: string) => {
     try {
-      const result = await supabaseDatabase.getUserByAddress(walletAddress);
-      
-      if (result.success && result.data) {
+      const existingUsers = JSON.parse(localStorage.getItem("morphcash_users") || "{}");
+      const userData = Object.values(existingUsers).find((user: any) => user.address === walletAddress) as any;
+
+      if (userData) {
         // User exists, log them in
-        const userData = result.data;
-        
-        // Create session
-        const sessionResult = await supabaseDatabase.createSession(
-          userData.id,
-          `wallet_${Date.now()}`,
-          new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString() // 7 days
-        );
-
-        if (sessionResult.success && sessionResult.data) {
-          localStorage.setItem("morphcash_session", JSON.stringify({
-            sessionId: sessionResult.data.id,
-            userId: userData.id,
-            expiresAt: sessionResult.data.expires_at,
-          }));
-
-          setUser({
-            id: userData.id,
-            address: userData.address,
-            ensName: userData.ens_name,
-            ensAvatar: userData.ens_avatar,
-            email: userData.email,
-            isAuthenticated: true,
-            authMethod: "wallet",
-            ensProfile: userData.ens_profile,
-          });
-        }
+        setUser({
+          id: userData.id,
+          address: userData.address,
+          ensName: userData.ensName,
+          ensAvatar: userData.ensProfile?.avatar,
+          email: userData.email,
+          isAuthenticated: true,
+          accountType: userData.accountType as "basic" | "premium" | "enterprise",
+          authMethod: "wallet",
+          ensProfile: userData.ensProfile,
+        });
       } else {
         // Create new user with wallet
         const profileData = {
@@ -442,9 +398,8 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
           github: "",
           discord: "",
           telegram: "",
-          isVerified: false,
         };
-        
+
         await createENSProfile(`wallet_${walletAddress}`, profileData);
       }
     } catch (error) {
@@ -470,6 +425,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     createENSProfile,
     updateENSProfile,
     loadENSProfile,
+    updateDisplayName,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
