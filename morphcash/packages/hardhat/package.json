@@ -40,6 +40,7 @@
     "@typechain/hardhat": "~9.1.0",
     "@types/eslint": "~9.6.1",
     "@types/mocha": "~10.0.10",
+    "@types/node": "~18.19.50",
     "@types/prettier": "~3.0.0",
     "@types/qrcode": "~1.5.5",
     "@typescript-eslint/eslint-plugin": "~8.27.0",
@@ -48,8 +49,8 @@
     "eslint": "~9.23.0",
     "eslint-config-prettier": "~10.1.1",
     "eslint-plugin-prettier": "~5.2.4",
-    "ethers": "~6.13.2",
-    "hardhat": "~2.22.10",
+    "ethers": "~6.13.7",
+    "hardhat": "~2.22.19",
     "hardhat-deploy": "^1.0.4",
     "hardhat-deploy-ethers": "~0.4.2",
     "hardhat-gas-reporter": "~2.2.1",
@@ -58,6 +59,6 @@
     "solidity-coverage": "~0.8.13",
     "ts-node": "~10.9.1",
     "typechain": "~8.3.2",
-    "typescript": "^5.8.2"
+    "typescript": "~5.9.2"
   }
 }
