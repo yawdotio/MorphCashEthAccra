@@ -195,6 +195,22 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@base-org/account@npm:^2.1.0":
+  version: 2.1.0
+  resolution: "@base-org/account@npm:2.1.0"
+  dependencies:
+    "@noble/hashes": 1.4.0
+    clsx: 1.2.1
+    eventemitter3: 5.0.1
+    idb-keyval: 6.2.1
+    ox: 0.6.9
+    preact: 10.24.2
+    viem: ^2.31.7
+    zustand: 5.0.3
+  checksum: 4f2fd7e0c9ae21b9536b50aa3d5f5fcc14c841b911fe2054086d36e1623e0eefff029f9b6dd312bd4d1ff3ba1a5274f14999ab28d1327c05825324608563a77d
+  languageName: node
+  linkType: hard
+
 "@chainsafe/is-ip@npm:^2.0.1":
   version: 2.1.0
   resolution: "@chainsafe/is-ip@npm:2.1.0"
@@ -3493,6 +3509,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@se-2/nextjs@workspace:packages/nextjs"
   dependencies:
+    "@base-org/account": ^2.1.0
     "@heroicons/react": ~2.1.5
     "@rainbow-me/rainbowkit": 2.2.8
     "@supabase/supabase-js": ^2.57.2
