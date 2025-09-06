@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useAuth } from "~~/contexts/AuthContext";
+import { useEnhancedAuth } from "~~/contexts/EnhancedAuthContext";
 import { useAccount } from "wagmi";
 import { 
   UserIcon, 
@@ -10,7 +10,7 @@ import {
 import { ENSProfileForm } from "./ENSProfileForm";
 
 export const UserProfileManager = () => {
-  const { user } = useAuth();
+  const { user } = useEnhancedAuth();
   const { address } = useAccount();
   const [isEditingProfile, setIsEditingProfile] = useState(false);
 
@@ -35,14 +35,14 @@ export const UserProfileManager = () => {
                 </div>
                 <div>
                   <h2 className="text-xl font-semibold text-gray-900">
-                    {user?.ensProfile?.displayName || user?.ensName || user?.email || 'User'}
+                    {user?.ens_profile?.displayName || user?.ens_name || user?.email || 'User'}
                   </h2>
                   <p className="text-gray-600">
-                    {user?.ensName && `@${user.ensName}`}
+                    {user?.ens_name && `@${user.ens_name}`}
                     {user?.email && ` • ${user.email}`}
                   </p>
                   <p className="text-sm text-gray-500 capitalize">
-                    {user?.accountType} Package • {user?.authMethod?.toUpperCase()} Authentication
+                    {user?.auth_method?.toUpperCase()} Authentication
                   </p>
                 </div>
               </div>

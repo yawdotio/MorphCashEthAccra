@@ -10,6 +10,7 @@ import {
   ClipboardDocumentIcon
 } from "@heroicons/react/24/outline";
 import { paymentService, SupportedCurrency } from "~~/services/paymentService";
+import { useCopyToClipboard } from "~~/hooks/scaffold-eth";
 
 interface CryptoPaymentModalProps {
   isOpen: boolean;
@@ -47,6 +48,7 @@ export const CryptoPaymentModal = ({
   const [paymentReference, setPaymentReference] = useState('');
   const [timeRemaining, setTimeRemaining] = useState(900); // 15 minutes in seconds
   const [copied, setCopied] = useState(false);
+  const { copyToClipboard } = useCopyToClipboard();
 
   // Generate payment address and reference
   useEffect(() => {
@@ -130,7 +132,7 @@ export const CryptoPaymentModal = ({
 
   const handleCopyAddress = async () => {
     try {
-      await navigator.clipboard.writeText(paymentAddress);
+      copyToClipboard(paymentAddress);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch (error) {
@@ -140,7 +142,7 @@ export const CryptoPaymentModal = ({
 
   const handleCopyAmount = async () => {
     try {
-      await navigator.clipboard.writeText(ethAmount.toString());
+      copyToClipboard(ethAmount.toString());
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch (error) {
@@ -259,10 +261,10 @@ export const CryptoPaymentModal = ({
               <div className="w-16 h-16 bg-orange-100 rounded-xl flex items-center justify-center mx-auto mb-4">
                 <div className="animate-pulse w-8 h-8 bg-orange-600 rounded-full"></div>
               </div>
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">Waiting for Payment</h3>
-              <p className="text-gray-600 mb-4">
-                Send exactly <strong>ETH {ethAmount.toFixed(6)}</strong> to the address below
-              </p>
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">Awaiting Payment</h3>
+            <p className="text-gray-600 mb-4">
+              Send exactly <strong>ETH {ethAmount.toFixed(6)}</strong> to the address below to fund your MorphCard
+            </p>
             </div>
 
             {/* Payment Details */}
@@ -331,9 +333,9 @@ export const CryptoPaymentModal = ({
             <div className="w-16 h-16 bg-blue-100 rounded-xl flex items-center justify-center mx-auto mb-4">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
             </div>
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">Confirming Payment</h3>
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">Verifying Payment & Creating MorphCard</h3>
             <p className="text-gray-600 mb-4">
-              We've detected your payment and are confirming it on the blockchain...
+              We've detected your payment and are confirming it on the blockchain. Your MorphCard will be created once confirmed...
             </p>
             <div className="bg-blue-50 rounded-xl p-4">
               <p className="text-sm text-blue-800">
@@ -354,7 +356,7 @@ export const CryptoPaymentModal = ({
             </div>
             <h3 className="text-lg font-semibold text-gray-900 mb-2">Payment Confirmed!</h3>
             <p className="text-gray-600 mb-4">
-              Your virtual card is being created...
+              Your MorphCard is being created and will appear in your dashboard shortly...
             </p>
             <div className="bg-green-50 rounded-xl p-4">
               <p className="text-sm text-green-800">

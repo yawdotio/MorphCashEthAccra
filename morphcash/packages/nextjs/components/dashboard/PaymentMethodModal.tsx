@@ -13,7 +13,7 @@ import { paymentService, SupportedCurrency } from "~~/services/paymentService";
 interface PaymentMethodModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSelectPaymentMethod: (method: 'mobile_money' | 'crypto', currency: SupportedCurrency) => void;
+  onSelectPaymentMethod: (method: 'mobile_money' | 'mtn_mobile_money' | 'mtn_api' | 'crypto', currency: SupportedCurrency) => void;
   fundingAmount: number;
   feeAmount: number;
   totalAmount: number;
@@ -187,6 +187,53 @@ export const PaymentMethodModal = ({
 
         {/* Payment Methods */}
         <div className="space-y-4">
+          {/* MTN Mobile Money API Option (Recommended) */}
+          <button
+            onClick={() => onSelectPaymentMethod('mtn_api', selectedCurrency)}
+            className="w-full p-4 border-2 border-yellow-300 bg-yellow-50 rounded-xl hover:border-yellow-400 hover:bg-yellow-100 transition-all duration-200 group relative"
+          >
+            <div className="absolute top-2 right-2">
+              <span className="bg-yellow-500 text-white text-xs px-2 py-1 rounded-full font-medium">
+                Recommended
+              </span>
+            </div>
+            <div className="flex items-center space-x-4">
+              <div className="w-12 h-12 bg-yellow-200 rounded-xl flex items-center justify-center group-hover:bg-yellow-300 transition-colors">
+                <DevicePhoneMobileIcon className="h-6 w-6 text-yellow-700" />
+              </div>
+              <div className="flex-1 text-left">
+                <h3 className="font-semibold text-gray-900">MTN Mobile Money (Direct)</h3>
+                <p className="text-sm text-gray-600">Direct API integration with real-time verification</p>
+                <p className="text-sm text-gray-500">Enter phone number, get instant payment request</p>
+              </div>
+              <div className="text-right">
+                <p className="font-semibold text-gray-900">{paymentService.formatCurrency(totalAmount, selectedCurrency)}</p>
+                <p className="text-xs text-gray-500">Total amount</p>
+              </div>
+            </div>
+          </button>
+
+          {/* MTN Mobile Money Widget Option */}
+          <button
+            onClick={() => onSelectPaymentMethod('mtn_mobile_money', selectedCurrency)}
+            className="w-full p-4 border-2 border-gray-200 rounded-xl hover:border-yellow-300 hover:bg-yellow-50 transition-all duration-200 group"
+          >
+            <div className="flex items-center space-x-4">
+              <div className="w-12 h-12 bg-yellow-100 rounded-xl flex items-center justify-center group-hover:bg-yellow-200 transition-colors">
+                <DevicePhoneMobileIcon className="h-6 w-6 text-yellow-600" />
+              </div>
+              <div className="flex-1 text-left">
+                <h3 className="font-semibold text-gray-900">MTN Mobile Money (Widget)</h3>
+                <p className="text-sm text-gray-600">Pay with MTN Mobile Money widget</p>
+                <p className="text-sm text-gray-500">Redirect to MTN system for payment</p>
+              </div>
+              <div className="text-right">
+                <p className="font-semibold text-gray-900">{paymentService.formatCurrency(totalAmount, selectedCurrency)}</p>
+                <p className="text-xs text-gray-500">Total amount</p>
+              </div>
+            </div>
+          </button>
+
           {/* Mobile Money Option */}
           <button
             onClick={() => onSelectPaymentMethod('mobile_money', selectedCurrency)}
@@ -200,7 +247,7 @@ export const PaymentMethodModal = ({
                 <h3 className="font-semibold text-gray-900">Mobile Money</h3>
                 <p className="text-sm text-gray-600">
                   {selectedCurrency === 'GHS' 
-                    ? 'Pay with MTN, Vodafone, or AirtelTigo' 
+                    ? 'Pay with Vodafone or AirtelTigo' 
                     : 'Pay with international mobile money'
                   }
                 </p>

@@ -1,0 +1,27 @@
+{
+  "name": "@morphcash/supabase",
+  "version": "1.0.0",
+  "description": "Supabase configuration and utilities for MorphCash",
+  "main": "index.js",
+  "scripts": {
+    "setup": "node scripts/setup.js",
+    "migrate": "node scripts/migrate.js",
+    "seed": "node scripts/seed.js",
+    "reset": "node scripts/reset.js"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.38.0"
+  },
+  "devDependencies": {
+    "dotenv": "^16.3.1"
+  },
+  "keywords": [
+    "supabase",
+    "database",
+    "morphcash",
+    "ethereum",
+    "web3"
+  ],
+  "author": "MorphCash Team",
+  "license": "MIT"
+}

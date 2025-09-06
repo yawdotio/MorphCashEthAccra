@@ -1,6 +1,6 @@
 import { useEnsName, useEnsAddress } from "wagmi";
 import { normalize } from "viem/ens";
-import { keccak256, toUtf8Bytes } from "viem";
+import { keccak256, stringToBytes } from "viem";
 
 /**
  * ENS Verification Utilities
@@ -101,7 +101,7 @@ export const resolveENSName = async (ensName: string): Promise<string | null> =>
     
     // In production, this would use the ENS resolver contract
     // For now, we'll return a mock address
-    return "0x" + keccak256(toUtf8Bytes(normalizedName)).slice(2, 42);
+    return "0x" + keccak256(stringToBytes(normalizedName)).slice(2, 42);
   } catch (error) {
     console.error("Error resolving ENS name:", error);
     return null;
@@ -163,7 +163,7 @@ export const getENSExpiration = async (ensName: string): Promise<Date | null> =>
 export const generateENSHash = (ensName: string): string => {
   try {
     const normalizedName = normalize(ensName);
-    return keccak256(toUtf8Bytes(normalizedName));
+    return keccak256(stringToBytes(normalizedName));
   } catch (error) {
     console.error("Error generating ENS hash:", error);
     throw new Error("Invalid ENS name format");

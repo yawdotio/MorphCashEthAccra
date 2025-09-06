@@ -29,6 +29,16 @@ export interface MobileMoneyPaymentData {
   reference: string;
 }
 
+export interface MTNMobileMoneyPaymentData {
+  apiUserId: string;
+  amount: number;
+  currency: string;
+  externalId: string;
+  invoiceId?: string;
+  paymentReference?: string;
+  status?: 'PENDING' | 'SUCCESSFUL' | 'FAILED';
+}
+
 export interface CryptoPaymentData {
   amount: number; // in ETH
   address: string;
@@ -208,6 +218,230 @@ class PaymentService {
       return {
         success: false,
         error: 'Payment processing error. Please try again.'
+      };
+    }
+  }
+
+  /**
+   * Process MTN Mobile Money payment using widget
+   * This method handles the payment verification after widget events
+   */
+  async processMTNMobileMoneyPayment(paymentData: MTNMobileMoneyPaymentData): Promise<PaymentResult> {
+    try {
+      // In production, this would verify the payment with MTN's API
+      // For now, we'll simulate the verification process
+      
+      // Simulate API call delay
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      // Simulate payment verification (95% success rate for demo)
+      const isSuccess = Math.random() > 0.05;
+      
+      if (isSuccess) {
+        return {
+          success: true,
+          transactionId: paymentData.invoiceId || `MTN_${Date.now()}`,
+          reference: paymentData.paymentReference || paymentData.externalId
+        };
+      } else {
+        return {
+          success: false,
+          error: 'Payment verification failed. Please try again.'
+        };
+      }
+    } catch (error) {
+      return {
+        success: false,
+        error: 'Payment verification error. Please try again.'
+      };
+    }
+  }
+
+  /**
+   * Create MTN Access Token
+   * Required for authenticating with MTN Collections API
+   */
+  async createMTNAccessToken(): Promise<{ accessToken: string; expiresIn: number } | null> {
+    try {
+      const response = await fetch('/api/mtn/auth', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        console.error('Failed to create MTN access token:', response.statusText);
+        return null;
+      }
+
+      const data = await response.json();
+      return {
+        accessToken: data.access_token,
+        expiresIn: data.expires_in
+      };
+    } catch (error) {
+      console.error('Error creating MTN access token:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Request Payment from MTN Collections API
+   * Creates a payment request using the requestToPay endpoint
+   */
+  async requestMTNPayment(paymentData: {
+    amount: number;
+    currency: string;
+    externalId: string;
+    phoneNumber: string;
+    payerMessage?: string;
+    payeeNote?: string;
+  }): Promise<{ success: boolean; referenceId?: string; error?: string }> {
+    try {
+      const response = await fetch('/api/mtn/request-payment', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(paymentData)
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        return {
+          success: false,
+          error: data.message || 'Payment request failed'
+        };
+      }
+
+      return {
+        success: true,
+        referenceId: data.referenceId
+      };
+    } catch (error) {
+      console.error('Error requesting MTN payment:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      };
+    }
+  }
+
+  /**
+   * Check MTN Payment Status
+   * Queries the MTN API to check payment status
+   */
+  async checkMTNPaymentStatus(referenceId: string): Promise<{
+    success: boolean;
+    status: 'PENDING' | 'SUCCESSFUL' | 'FAILED';
+    amount?: number;
+    currency?: string;
+    financialTransactionId?: string;
+    externalId?: string;
+    payer?: any;
+    payerMessage?: string;
+    payeeNote?: string;
+    error?: string;
+  }> {
+    try {
+      const response = await fetch(`/api/mtn/payment-status/${referenceId}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        return { 
+          success: false,
+          status: 'FAILED',
+          error: data.message || 'Failed to check payment status'
+        };
+      }
+
+      return {
+        success: data.success,
+        status: data.status,
+        amount: data.amount,
+        currency: data.currency,
+        financialTransactionId: data.financialTransactionId,
+        externalId: data.externalId,
+        payer: data.payer,
+        payerMessage: data.payerMessage,
+        payeeNote: data.payeeNote
+      };
+    } catch (error) {
+      console.error('Error checking MTN payment status:', error);
+      return { 
+        success: false,
+        status: 'FAILED',
+        error: error instanceof Error ? error.message : 'Unknown error'
+      };
+    }
+  }
+
+  /**
+   * Verify MTN Mobile Money payment status (Legacy method for widget compatibility)
+   * This method bridges the widget events with the new API integration
+   */
+  async verifyMTNPaymentStatus(invoiceId: string, externalId: string): Promise<{
+    status: 'PENDING' | 'SUCCESSFUL' | 'FAILED';
+    invoice?: any;
+  }> {
+    try {
+      // If invoiceId looks like a UUID (from API), use the API method
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+      
+      if (uuidRegex.test(invoiceId)) {
+        // Use the new API integration
+        const result = await this.checkMTNPaymentStatus(invoiceId);
+        
+        return {
+          status: result.status,
+          invoice: result.success ? {
+            invoiceId,
+            externalId: result.externalId || externalId,
+            amount: result.amount,
+            status: result.status,
+            financialTransactionId: result.financialTransactionId,
+            timestamp: new Date().toISOString()
+          } : undefined
+        };
+      }
+      
+      // Fallback to widget simulation for sandbox testing
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // Simulate different statuses based on amount (as per MTN docs)
+      const amount = parseFloat(externalId.split('-')[1]) || 50; // Extract amount from external ID
+      let status: 'PENDING' | 'SUCCESSFUL' | 'FAILED';
+      
+      if (amount >= 1 && amount <= 19) {
+        status = 'PENDING';
+      } else if (amount >= 20 && amount <= 79) {
+        status = 'FAILED';
+      } else {
+        status = 'SUCCESSFUL';
+      }
+      
+      return {
+        status,
+        invoice: {
+          invoiceId,
+          externalId,
+          amount,
+          status,
+          timestamp: new Date().toISOString()
+        }
+      };
+    } catch (error) {
+      console.error('Error verifying MTN payment status:', error);
+      return {
+        status: 'FAILED'
       };
     }
   }
