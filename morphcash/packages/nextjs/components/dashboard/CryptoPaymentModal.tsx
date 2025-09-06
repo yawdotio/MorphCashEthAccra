@@ -11,6 +11,11 @@ import {
 } from "@heroicons/react/24/outline";
 import { paymentService, SupportedCurrency } from "~~/services/paymentService";
 import { useCopyToClipboard } from "~~/hooks/scaffold-eth";
+import { useScaffoldReadContract } from "~~/hooks/scaffold-eth/useScaffoldReadContract";
+import { useScaffoldWriteContract } from "~~/hooks/scaffold-eth/useScaffoldWriteContract";
+import { useAccount } from "wagmi";
+import { ConnectButton } from "@rainbow-me/rainbowkit";
+import coinbaseService from "~~/services/coinbaseService";
 
 interface CryptoPaymentModalProps {
   isOpen: boolean;
@@ -28,7 +33,17 @@ type PaymentStatus = 'pending' | 'waiting' | 'confirming' | 'success' | 'failed'
 interface ExchangeRate {
   ghsToEth: number;
   ethToGhs: number;
+  ghsToUsdc: number;
+  usdcToGhs: number;
   lastUpdated: string;
+}
+
+interface CryptoOption {
+  symbol: string;
+  name: string;
+  amount: number;
+  network: 'ethereum' | 'base';
+  gasless: boolean;
 }
 
 export const CryptoPaymentModal = ({
@@ -48,7 +63,38 @@ export const CryptoPaymentModal = ({
   const [paymentReference, setPaymentReference] = useState('');
   const [timeRemaining, setTimeRemaining] = useState(900); // 15 minutes in seconds
   const [copied, setCopied] = useState(false);
+  const [selectedCrypto, setSelectedCrypto] = useState<CryptoOption | null>(null);
+  const [cryptoOptions, setCryptoOptions] = useState<CryptoOption[]>([]);
+  const [isLoadingOptions, setIsLoadingOptions] = useState(false);
+  const [fundingId, setFundingId] = useState<number | null>(null);
   const { copyToClipboard } = useCopyToClipboard();
+
+  // Get wallet connection
+  const { address } = useAccount();
+
+  // Smart contract hooks for payment verification
+  const { data: payment, refetch: refetchPayment } = useScaffoldReadContract({
+    contractName: "PaymentContract",
+    functionName: "getPaymentByReference",
+    args: paymentReference ? [paymentReference] : [undefined],
+    query: {
+      enabled: !!paymentReference && !!address,
+    },
+  });
+
+  const { data: isProcessed, refetch: refetchIsProcessed } = useScaffoldReadContract({
+    contractName: "PaymentContract",
+    functionName: "isPaymentProcessed",
+    args: fundingId ? [BigInt(fundingId)] : [undefined],
+    query: {
+      enabled: !!fundingId && !!address,
+    },
+  });
+
+  // Write contract hook for funding card
+  const { writeContractAsync: fundCardAsync, isPending: isFundingPending } = useScaffoldWriteContract({
+    contractName: "PaymentContract",
+  });
 
   // Generate payment address and reference
   useEffect(() => {
@@ -60,16 +106,94 @@ export const CryptoPaymentModal = ({
     }
   }, [isOpen, paymentStatus]);
 
-  // Fetch real-time exchange rate
+  // Fetch real-time exchange rates from Coinbase
   const fetchExchangeRate = async () => {
     setIsLoadingRate(true);
     try {
-      const rate = await paymentService.getExchangeRate();
-      setExchangeRate(rate);
+      console.log(`🔄 Fetching exchange rates for ${currency}...`);
+      
+      const [ethRate, usdcRate] = await Promise.all([
+        coinbaseService.getExchangeRates(currency, 'ETH'),
+        coinbaseService.getExchangeRates(currency, 'USDC'),
+      ]);
+
+      console.log('📈 ETH Rate:', ethRate);
+      console.log('📈 USDC Rate:', usdcRate);
+
+      const exchangeRateData = {
+        ghsToEth: currency === 'GHS' ? ethRate.rate : 1 / ethRate.rate,
+        ethToGhs: currency === 'GHS' ? 1 / ethRate.rate : ethRate.rate,
+        ghsToUsdc: currency === 'GHS' ? usdcRate.rate : 1 / usdcRate.rate,
+        usdcToGhs: currency === 'GHS' ? 1 / usdcRate.rate : usdcRate.rate,
+        lastUpdated: new Date().toISOString(),
+      };
+
+      console.log('✅ Exchange rates calculated:', exchangeRateData);
+      setExchangeRate(exchangeRateData);
     } catch (error) {
-      console.error('Error fetching exchange rate:', error);
+      console.error('❌ Error fetching exchange rate:', error);
     } finally {
       setIsLoadingRate(false);
+    }
+  };
+
+  // Load crypto payment options
+  const loadCryptoOptions = async () => {
+    setIsLoadingOptions(true);
+    try {
+      console.log('🔄 Loading crypto options...');
+      
+      const options: CryptoOption[] = [];
+
+      // USDC on Base network (default option)
+      console.log(`🔄 Converting ${totalAmount} ${currency} to USDC...`);
+      const usdcAmount = await coinbaseService.convertCurrency(
+        totalAmount,
+        currency,
+        'USDC'
+      );
+      console.log(`✅ Converted: ${totalAmount} ${currency} = ${usdcAmount} USDC`);
+
+      options.push({
+        symbol: 'USDC',
+        name: 'USD Coin',
+        amount: usdcAmount,
+        network: 'base',
+        gasless: true, // USDC on Base can be gasless
+      });
+
+      // ETH on Ethereum network
+      console.log(`🔄 Converting ${totalAmount} ${currency} to ETH...`);
+      const ethAmount = await coinbaseService.convertCurrency(
+        totalAmount,
+        currency,
+        'ETH'
+      );
+      console.log(`✅ Converted: ${totalAmount} ${currency} = ${ethAmount} ETH`);
+
+      options.push({
+        symbol: 'ETH',
+        name: 'Ethereum',
+        amount: ethAmount,
+        network: 'ethereum',
+        gasless: false,
+      });
+
+      console.log('🎯 Final crypto options:', options);
+      setCryptoOptions(options);
+      if (options.length > 0) {
+        // Default to USDC on Base (first option)
+        setSelectedCrypto(options[0]); // Default to USDC on Base
+        console.log('✅ Default selected crypto:', options[0]);
+      } else {
+        console.warn('⚠️ No crypto options found');
+      }
+    } catch (error) {
+      console.error('❌ Error loading crypto options:', error);
+      // Don't use fallback - show error to user
+      setCryptoOptions([]);
+    } finally {
+      setIsLoadingOptions(false);
     }
   };
 
@@ -90,44 +214,107 @@ export const CryptoPaymentModal = ({
     return () => clearInterval(interval);
   }, [paymentStatus, timeRemaining]);
 
-  // Simulate payment monitoring
+  // Smart contract payment verification
   useEffect(() => {
-    if (paymentStatus === 'waiting') {
-      // In a real implementation, this would monitor the blockchain for the transaction
+    if (paymentStatus === 'waiting' && payment && fundingId) {
+      console.log('🔍 Payment found in contract:', payment);
+      console.log('📊 Payment ID:', fundingId);
+      console.log('✅ Is Processed:', isProcessed);
+      
+      if (isProcessed) {
+        console.log('✅ Payment confirmed by smart contract!');
+        setPaymentStatus('confirming');
+        
+        // Simulate confirmation delay
+        setTimeout(() => {
+          console.log('✅ Payment fully confirmed!');
+          setPaymentStatus('success');
+          setTimeout(() => {
+            console.log('🎉 Creating virtual card...');
+            onPaymentSuccess();
+          }, 2000);
+        }, 3000);
+      }
+    }
+  }, [payment, fundingId, isProcessed, paymentStatus, onPaymentSuccess]);
+
+  // Monitor payment status via smart contract
+  useEffect(() => {
+    if (paymentStatus === 'waiting' && paymentReference && address) {
+      console.log('🔍 Starting smart contract payment verification...');
+      console.log('📍 Payment Reference:', paymentReference);
+      console.log('👤 User Address:', address);
+      
       const checkPayment = async () => {
-        // Simulate checking for payment every 10 seconds
         const interval = setInterval(async () => {
-          // Simulate payment detection (90% success rate for demo)
-          const isPaymentDetected = Math.random() > 0.7;
-          
-          if (isPaymentDetected) {
-            setPaymentStatus('confirming');
-            clearInterval(interval);
+          try {
+            console.log('🔄 Checking smart contract for payment...');
             
-            // Simulate confirmation delay
-            setTimeout(() => {
-              setPaymentStatus('success');
-              setTimeout(() => {
-                onPaymentSuccess();
-              }, 2000);
-            }, 3000);
+            // Refetch payment data from contract
+            await refetchPayment();
+            await refetchIsProcessed();
+            
+            console.log('📊 Current payment data:', payment);
+            console.log('📊 Is processed:', isProcessed);
+            
+          } catch (error) {
+            console.error('❌ Error checking payment in contract:', error);
           }
-        }, 10000);
+        }, 5000); // Check every 5 seconds
 
         // Cleanup after 15 minutes
         setTimeout(() => {
+          console.log('⏰ Payment timeout - clearing interval');
           clearInterval(interval);
         }, 900000);
       };
 
       checkPayment();
     }
-  }, [paymentStatus, onPaymentSuccess]);
+  }, [paymentStatus, paymentReference, address, refetchPayment, refetchIsProcessed, payment, isProcessed]);
 
-  const handleInitiatePayment = () => {
-    setPaymentStatus('waiting');
-    setTimeRemaining(900); // Reset timer
-    fetchExchangeRate();
+  // Load exchange rate and crypto options when modal opens
+  useEffect(() => {
+    if (isOpen) {
+      fetchExchangeRate();
+      loadCryptoOptions();
+    }
+  }, [isOpen]);
+
+  const handleInitiatePayment = async () => {
+    if (!selectedCrypto || !address) {
+      console.error('❌ Missing required data for payment');
+      return;
+    }
+
+    try {
+      console.log('🚀 Creating payment record in smart contract...');
+      console.log('💰 Amount:', selectedCrypto.amount, selectedCrypto.symbol);
+      console.log('📍 Reference:', paymentReference);
+      
+      setPaymentStatus('confirming');
+      
+      // Create payment record in smart contract
+      const paymentId = await fundCardAsync({
+        functionName: "createPayment",
+        args: [
+          BigInt(Math.floor(selectedCrypto.amount * 1e18)), // Amount in wei
+          BigInt(Math.floor(fundingAmount * 100)), // GHS amount in cents
+          "crypto", // Payment method
+          paymentReference // Payment reference as string
+        ],
+      });
+
+      console.log('✅ Payment record created with ID:', paymentId);
+      setFundingId(Number(paymentId));
+      
+      setPaymentStatus('waiting');
+      setTimeRemaining(900); // Reset timer
+      
+    } catch (error) {
+      console.error('❌ Payment initiation failed:', error);
+      setPaymentStatus('failed');
+    }
   };
 
   const handleCopyAddress = async () => {
@@ -157,6 +344,45 @@ export const CryptoPaymentModal = ({
     onClose();
   };
 
+  const handleTestPayment = async () => {
+    console.log('🧪 Creating test payment record in smart contract...');
+    
+    if (!selectedCrypto || !address) {
+      console.error('❌ Missing required data for test payment');
+      return;
+    }
+
+    try {
+      setPaymentStatus('confirming');
+      
+      // Create payment record in smart contract
+      const paymentId = await fundCardAsync({
+        functionName: "createPayment",
+        args: [
+          BigInt(Math.floor(selectedCrypto.amount * 1e18)), // Amount in wei
+          BigInt(Math.floor(fundingAmount * 100)), // GHS amount in cents
+          "crypto", // Payment method
+          paymentReference // Payment reference as string
+        ],
+      });
+
+      console.log('✅ Test payment record created with ID:', paymentId);
+      setFundingId(Number(paymentId));
+      
+      // Simulate immediate processing for test
+      setTimeout(() => {
+        setPaymentStatus('success');
+        setTimeout(() => {
+          onPaymentSuccess();
+        }, 2000);
+      }, 3000);
+      
+    } catch (error) {
+      console.error('❌ Test payment failed:', error);
+      setPaymentStatus('failed');
+    }
+  };
+
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
@@ -166,8 +392,18 @@ export const CryptoPaymentModal = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-2xl p-8 max-w-md w-full mx-4 relative">
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col relative">
+        {/* Header - Fixed */}
+        <div className="flex-shrink-0 p-6 border-b border-gray-200">
+          <div className="flex items-center justify-between">
+            <div className="text-center flex-1">
+              <div className="w-16 h-16 bg-orange-100 rounded-xl flex items-center justify-center mx-auto mb-4">
+                <CurrencyDollarIcon className="h-8 w-8 text-orange-600" />
+              </div>
+              <h2 className="text-2xl font-bold text-gray-900 mb-2">Crypto Payment</h2>
+              <p className="text-gray-600">Pay with ETH or USDC on Base Network</p>
+            </div>
         {/* Close Button */}
         {paymentStatus !== 'confirming' && (
           <button
@@ -177,25 +413,21 @@ export const CryptoPaymentModal = ({
             <XMarkIcon className="h-6 w-6" />
           </button>
         )}
-
-        {/* Header */}
-        <div className="text-center mb-8">
-          <div className="w-16 h-16 bg-orange-100 rounded-xl flex items-center justify-center mx-auto mb-4">
-            <CurrencyDollarIcon className="h-8 w-8 text-orange-600" />
           </div>
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">Crypto Payment</h2>
-          <p className="text-gray-600">Pay with Ethereum (ETH)</p>
         </div>
 
+        {/* Scrollable Content */}
+        <div className="flex-1 overflow-y-auto p-6">
+
         {/* Payment Summary */}
-        <div className="bg-gray-50 rounded-xl p-4 mb-6">
-          <div className="flex justify-between items-center mb-2">
-            <span className="text-gray-600">Funding Amount:</span>
-            <span className="font-semibold">{paymentService.formatCurrency(fundingAmount, currency)}</span>
+        <div className="bg-gray-50 rounded-lg p-3 mb-4">
+          <div className="flex justify-between items-center mb-1">
+            <span className="text-sm text-gray-600">Funding Amount:</span>
+            <span className="font-semibold text-sm">{paymentService.formatCurrency(fundingAmount, currency)}</span>
           </div>
-          <div className="flex justify-between items-center mb-2">
-            <span className="text-gray-600">Platform Fee (0.02%):</span>
-            <span className="font-semibold">{paymentService.formatCurrency(feeAmount, currency)}</span>
+          <div className="flex justify-between items-center mb-1">
+            <span className="text-sm text-gray-600">Platform Fee (0.02%):</span>
+            <span className="font-semibold text-sm">{paymentService.formatCurrency(feeAmount, currency)}</span>
           </div>
           <div className="flex justify-between items-center border-t pt-2">
             <span className="text-gray-900 font-semibold">Total Amount:</span>
@@ -205,9 +437,9 @@ export const CryptoPaymentModal = ({
 
         {/* Exchange Rate Info */}
         {exchangeRate && (
-          <div className="bg-blue-50 rounded-xl p-4 mb-6">
+          <div className="bg-blue-50 rounded-lg p-3 mb-4">
             <div className="flex items-center justify-between mb-2">
-              <span className="text-sm text-blue-800">Current Exchange Rate:</span>
+              <span className="text-sm text-blue-800 font-medium">Exchange Rates:</span>
               <button
                 onClick={fetchExchangeRate}
                 disabled={isLoadingRate}
@@ -216,61 +448,192 @@ export const CryptoPaymentModal = ({
                 <ArrowPathIcon className={`h-4 w-4 ${isLoadingRate ? 'animate-spin' : ''}`} />
               </button>
             </div>
-            <div className="text-sm text-blue-700">
+            <div className="text-xs text-blue-700 grid grid-cols-2 gap-1">
               {currency === 'GHS' ? (
                 <>
                   <p>1 ETH = GHS {exchangeRate.ethToGhs.toFixed(2)}</p>
-                  <p>1 GHS = ETH {exchangeRate.ghsToEth.toFixed(8)}</p>
+                  <p>1 USDC = GHS {exchangeRate.usdcToGhs.toFixed(2)}</p>
+                  <p>1 GHS = ETH {exchangeRate.ghsToEth.toFixed(6)}</p>
+                  <p>1 GHS = USDC {exchangeRate.ghsToUsdc.toFixed(2)}</p>
                 </>
               ) : (
                 <>
-                  <p>1 ETH = ${exchangeRate.ethToUsd.toFixed(2)}</p>
-                  <p>1 USD = ETH {exchangeRate.usdToEth.toFixed(8)}</p>
+                  <p>1 ETH = ${exchangeRate.ethToGhs.toFixed(2)}</p>
+                  <p>1 USDC = ${exchangeRate.usdcToGhs.toFixed(2)}</p>
+                  <p>1 USD = ETH {exchangeRate.ghsToEth.toFixed(6)}</p>
+                  <p>1 USD = USDC {exchangeRate.ghsToUsdc.toFixed(2)}</p>
                 </>
               )}
+            </div>
               <p className="text-xs text-blue-600 mt-1">
-                Last updated: {new Date(exchangeRate.lastUpdated).toLocaleTimeString()}
-              </p>
+              Updated: {new Date(exchangeRate.lastUpdated).toLocaleTimeString()}
+            </p>
+          </div>
+        )}
+
+        {/* Crypto Payment Options */}
+        {isLoadingOptions ? (
+          <div className="text-center py-4">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-600 mx-auto"></div>
+            <p className="text-gray-600 mt-2">Loading payment options...</p>
+          </div>
+        ) : !address ? (
+          <div className="mb-4">
+            <h3 className="text-lg font-semibold text-gray-900 mb-3">Choose Payment Method</h3>
+            <div className="bg-gray-50 border border-gray-200 rounded-lg p-6 text-center">
+              <CurrencyDollarIcon className="h-12 w-12 text-gray-400 mx-auto mb-3" />
+              <p className="text-gray-600 mb-2">Connect your wallet to see payment options</p>
+              <p className="text-sm text-gray-500">Crypto payments require a connected wallet</p>
+            </div>
+          </div>
+        ) : cryptoOptions.length > 0 && (
+          <div className="mb-4">
+            <h3 className="text-lg font-semibold text-gray-900 mb-3">Choose Payment Method</h3>
+            <div className="grid grid-cols-1 gap-2">
+              {cryptoOptions.map((option) => (
+                <button
+                  key={option.symbol}
+                  onClick={() => setSelectedCrypto(option)}
+                  className={`p-3 rounded-lg border-2 transition-all ${
+                    selectedCrypto?.symbol === option.symbol
+                      ? 'border-orange-500 bg-orange-50'
+                      : 'border-gray-200 hover:border-gray-300'
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-3">
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                        option.symbol === 'ETH' ? 'bg-blue-100' : 'bg-green-100'
+                      }`}>
+                        <span className={`font-bold text-sm ${
+                          option.symbol === 'ETH' ? 'text-blue-600' : 'text-green-600'
+                        }`}>
+                          {option.symbol.charAt(0)}
+                        </span>
+                      </div>
+                      <div className="text-left">
+                        <p className="font-semibold text-gray-900 text-sm">{option.name}</p>
+                        <p className="text-xs text-gray-600">
+                          {option.network === 'base' ? 'Base Network' : 'Ethereum'}
+                          {option.gasless && ' • Gasless'}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-semibold text-gray-900 text-sm">
+                        {option.amount.toFixed(6)} {option.symbol}
+                      </p>
+                      <p className="text-xs text-gray-600">
+                        ≈ {paymentService.formatCurrency(totalAmount, currency)}
+                      </p>
+                    </div>
+                  </div>
+                </button>
+              ))}
             </div>
           </div>
         )}
 
         {/* Payment Status */}
         {paymentStatus === 'pending' && (
-          <div className="space-y-6">
+          <div className="space-y-4">
             <div className="text-center">
               <h3 className="text-lg font-semibold text-gray-900 mb-2">Ready to Pay</h3>
-              <p className="text-gray-600 mb-4">
-                You will need to send exactly <strong>ETH {ethAmount.toFixed(6)}</strong> to complete the payment.
+              <p className="text-sm text-gray-600 mb-3">
+                {selectedCrypto ? (
+                  <>
+                    Send exactly <strong>{selectedCrypto.amount.toFixed(6)} {selectedCrypto.symbol}</strong> to complete payment.
+                    {selectedCrypto.gasless && (
+                      <span className="block text-green-600 text-xs mt-1">
+                        ✓ Gasless transaction on Base Network
+                      </span>
+                    )}
+                  </>
+                ) : (
+                  'Please select a payment method above.'
+                )}
               </p>
             </div>
 
-            <button
-              onClick={handleInitiatePayment}
-              className="w-full bg-orange-600 text-white py-3 rounded-xl font-semibold hover:bg-orange-700 transition-colors"
-            >
-              Generate Payment Details
-            </button>
+            {address ? (
+              <button
+                onClick={handleInitiatePayment}
+                disabled={!selectedCrypto || isFundingPending}
+                className="w-full bg-orange-600 text-white py-3 rounded-lg font-semibold hover:bg-orange-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isFundingPending ? 'Processing Payment...' : 'Pay via Smart Contract'}
+              </button>
+            ) : (
+              <div className="space-y-3">
+                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+                  <div className="flex items-center">
+                    <ExclamationTriangleIcon className="h-5 w-5 text-yellow-600 mr-2" />
+                    <p className="text-sm text-yellow-800 font-medium">
+                      Wallet connection required for crypto payments
+                    </p>
+                  </div>
+                </div>
+                <ConnectButton.Custom>
+                  {({ openConnectModal, mounted }) => {
+                    const ready = mounted;
+                    return (
+                      <button
+                        onClick={openConnectModal}
+                        disabled={!ready}
+                        className="w-full bg-blue-600 text-white py-3 rounded-lg font-semibold hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+                      >
+                        <CurrencyDollarIcon className="h-5 w-5 mr-2" />
+                        Connect Wallet
+                      </button>
+                    );
+                  }}
+                </ConnectButton.Custom>
+              </div>
+            )}
           </div>
         )}
 
         {/* Waiting for Payment */}
         {paymentStatus === 'waiting' && (
-          <div className="space-y-6">
+          <div className="space-y-4">
             <div className="text-center">
-              <div className="w-16 h-16 bg-orange-100 rounded-xl flex items-center justify-center mx-auto mb-4">
-                <div className="animate-pulse w-8 h-8 bg-orange-600 rounded-full"></div>
+              <div className="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center mx-auto mb-3">
+                <div className="animate-pulse w-6 h-6 bg-orange-600 rounded-full"></div>
               </div>
             <h3 className="text-lg font-semibold text-gray-900 mb-2">Awaiting Payment</h3>
-            <p className="text-gray-600 mb-4">
-              Send exactly <strong>ETH {ethAmount.toFixed(6)}</strong> to the address below to fund your MorphCard
-            </p>
+            <p className="text-sm text-gray-600 mb-3">
+              Send exactly <strong>{selectedCrypto?.amount.toFixed(6)} {selectedCrypto?.symbol}</strong> to fund your MorphCard
+              {selectedCrypto?.gasless && (
+                <span className="block text-green-600 text-xs mt-1">
+                  ✓ Gasless transaction on Base Network
+                </span>
+              )}
+              </p>
+              
+              {/* Test Payment Button for Demo */}
+              <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                <p className="text-xs text-yellow-800 mb-2">
+                  🧪 Demo Mode: Click to test payment via smart contract
+                </p>
+                <button
+                  onClick={handleTestPayment}
+                  disabled={!address || isFundingPending}
+                  className="px-4 py-2 bg-yellow-600 text-white text-sm rounded-lg hover:bg-yellow-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isFundingPending ? 'Processing...' : 'Test Smart Contract Payment'}
+                </button>
+                {!address && (
+                  <p className="text-xs text-red-600 mt-1">
+                    ⚠️ Wallet connection required
+                  </p>
+                )}
+              </div>
             </div>
 
             {/* Payment Details */}
-            <div className="space-y-4">
-              <div className="bg-gray-50 rounded-xl p-4">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+            <div className="space-y-3">
+              <div className="bg-gray-50 rounded-lg p-3">
+                <label className="block text-xs font-medium text-gray-700 mb-1">
                   Payment Address
                 </label>
                 <div className="flex items-center space-x-2">
@@ -278,42 +641,42 @@ export const CryptoPaymentModal = ({
                     type="text"
                     value={paymentAddress}
                     readOnly
-                    className="flex-1 px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm font-mono"
+                    className="flex-1 px-2 py-1 bg-white border border-gray-300 rounded text-xs font-mono"
                   />
                   <button
                     onClick={handleCopyAddress}
-                    className="p-2 text-gray-500 hover:text-gray-700"
+                    className="p-1 text-gray-500 hover:text-gray-700"
                   >
-                    <ClipboardDocumentIcon className="h-5 w-5" />
+                    <ClipboardDocumentIcon className="h-4 w-4" />
                   </button>
                 </div>
               </div>
 
-              <div className="bg-gray-50 rounded-xl p-4">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+              <div className="bg-gray-50 rounded-lg p-3">
+                <label className="block text-xs font-medium text-gray-700 mb-1">
                   Amount to Send
                 </label>
                 <div className="flex items-center space-x-2">
                   <input
                     type="text"
-                    value={`ETH ${ethAmount.toFixed(6)}`}
+                    value={`${selectedCrypto?.amount.toFixed(6)} ${selectedCrypto?.symbol}`}
                     readOnly
-                    className="flex-1 px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm font-mono"
+                    className="flex-1 px-2 py-1 bg-white border border-gray-300 rounded text-xs font-mono"
                   />
                   <button
                     onClick={handleCopyAmount}
-                    className="p-2 text-gray-500 hover:text-gray-700"
+                    className="p-1 text-gray-500 hover:text-gray-700"
                   >
-                    <ClipboardDocumentIcon className="h-5 w-5" />
+                    <ClipboardDocumentIcon className="h-4 w-4" />
                   </button>
                 </div>
               </div>
 
-              <div className="bg-orange-50 rounded-xl p-4">
-                <p className="text-sm text-orange-800">
+              <div className="bg-orange-50 rounded-lg p-3">
+                <p className="text-xs text-orange-800">
                   <strong>Reference:</strong> {paymentReference}
                 </p>
-                <p className="text-sm text-orange-600 mt-1">
+                <p className="text-xs text-orange-600 mt-1">
                   Time remaining: {formatTime(timeRemaining)}
                 </p>
               </div>
@@ -329,20 +692,20 @@ export const CryptoPaymentModal = ({
 
         {/* Confirming Payment */}
         {paymentStatus === 'confirming' && (
-          <div className="text-center py-8">
-            <div className="w-16 h-16 bg-blue-100 rounded-xl flex items-center justify-center mx-auto mb-4">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+          <div className="text-center py-6">
+            <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center mx-auto mb-3">
+              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
             </div>
             <h3 className="text-lg font-semibold text-gray-900 mb-2">Verifying Payment & Creating MorphCard</h3>
-            <p className="text-gray-600 mb-4">
+            <p className="text-sm text-gray-600 mb-3">
               We've detected your payment and are confirming it on the blockchain. Your MorphCard will be created once confirmed...
             </p>
-            <div className="bg-blue-50 rounded-xl p-4">
-              <p className="text-sm text-blue-800">
+            <div className="bg-blue-50 rounded-lg p-3">
+              <p className="text-xs text-blue-800">
                 <strong>Reference:</strong> {paymentReference}
               </p>
-              <p className="text-sm text-blue-600 mt-1">
-                Amount: ETH {ethAmount.toFixed(6)}
+              <p className="text-xs text-blue-600 mt-1">
+                Amount: {selectedCrypto?.amount.toFixed(6)} {selectedCrypto?.symbol}
               </p>
             </div>
           </div>
@@ -350,20 +713,20 @@ export const CryptoPaymentModal = ({
 
         {/* Success State */}
         {paymentStatus === 'success' && (
-          <div className="text-center py-8">
-            <div className="w-16 h-16 bg-green-100 rounded-xl flex items-center justify-center mx-auto mb-4">
-              <CheckCircleIcon className="h-8 w-8 text-green-600" />
+          <div className="text-center py-6">
+            <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center mx-auto mb-3">
+              <CheckCircleIcon className="h-6 w-6 text-green-600" />
             </div>
             <h3 className="text-lg font-semibold text-gray-900 mb-2">Payment Confirmed!</h3>
-            <p className="text-gray-600 mb-4">
+            <p className="text-sm text-gray-600 mb-3">
               Your MorphCard is being created and will appear in your dashboard shortly...
             </p>
-            <div className="bg-green-50 rounded-xl p-4">
-              <p className="text-sm text-green-800">
+            <div className="bg-green-50 rounded-lg p-3">
+              <p className="text-xs text-green-800">
                 <strong>Reference:</strong> {paymentReference}
               </p>
-              <p className="text-sm text-green-600 mt-1">
-                Amount: ETH {ethAmount.toFixed(6)}
+              <p className="text-xs text-green-600 mt-1">
+                Amount: {selectedCrypto?.amount.toFixed(6)} {selectedCrypto?.symbol}
               </p>
             </div>
           </div>
@@ -371,29 +734,29 @@ export const CryptoPaymentModal = ({
 
         {/* Failed/Expired State */}
         {(paymentStatus === 'failed' || paymentStatus === 'expired') && (
-          <div className="text-center py-8">
-            <div className="w-16 h-16 bg-red-100 rounded-xl flex items-center justify-center mx-auto mb-4">
-              <ExclamationTriangleIcon className="h-8 w-8 text-red-600" />
+          <div className="text-center py-6">
+            <div className="w-12 h-12 bg-red-100 rounded-lg flex items-center justify-center mx-auto mb-3">
+              <ExclamationTriangleIcon className="h-6 w-6 text-red-600" />
             </div>
             <h3 className="text-lg font-semibold text-gray-900 mb-2">
               {paymentStatus === 'expired' ? 'Payment Expired' : 'Payment Failed'}
             </h3>
-            <p className="text-gray-600 mb-4">
+            <p className="text-sm text-gray-600 mb-3">
               {paymentStatus === 'expired' 
                 ? 'The payment window has expired. Please try again.'
                 : 'There was an issue processing your payment. Please try again.'
               }
             </p>
-            <div className="space-y-3">
+            <div className="space-y-2">
               <button
                 onClick={() => setPaymentStatus('pending')}
-                className="w-full bg-red-600 text-white py-3 rounded-xl font-semibold hover:bg-red-700 transition-colors"
+                className="w-full bg-red-600 text-white py-3 rounded-lg font-semibold hover:bg-red-700 transition-colors"
               >
                 Try Again
               </button>
               <button
                 onClick={handleClose}
-                className="w-full bg-gray-200 text-gray-800 py-3 rounded-xl font-semibold hover:bg-gray-300 transition-colors"
+                className="w-full bg-gray-200 text-gray-800 py-3 rounded-lg font-semibold hover:bg-gray-300 transition-colors"
               >
                 Cancel
               </button>
@@ -401,9 +764,11 @@ export const CryptoPaymentModal = ({
           </div>
         )}
 
-        {/* Footer */}
+        </div>
+
+        {/* Footer - Fixed */}
         {paymentStatus === 'waiting' && (
-          <div className="mt-6 text-center">
+          <div className="flex-shrink-0 p-6 border-t border-gray-200 text-center">
             <p className="text-xs text-gray-500">
               Send the exact amount to the address above. Your payment will be confirmed automatically.
             </p>

@@ -126,15 +126,16 @@ export const EnhancedAuthProvider = ({ children }: EnhancedAuthProviderProps) =>
       }
 
       // Create session
+      const token = `email_${Date.now()}`;
       const sessionResult = await userService.createSession(
         result.data.id,
-        `email_${Date.now()}`,
+        token,
         new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString() // 7 days
       );
 
       if (sessionResult.success && sessionResult.data) {
         localStorage.setItem("morphcash_session", JSON.stringify({
-          token: `email_${Date.now()}`,
+          token: token,
           userId: result.data.id,
           expiresAt: sessionResult.data.expiresAt,
         }));
@@ -174,15 +175,16 @@ export const EnhancedAuthProvider = ({ children }: EnhancedAuthProviderProps) =>
       }
 
       // Create session
+      const token = `ens_${Date.now()}`;
       const sessionResult = await userService.createSession(
         userData.id,
-        `ens_${Date.now()}`,
+        token,
         new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString() // 7 days
       );
 
       if (sessionResult.success && sessionResult.data) {
         localStorage.setItem("morphcash_session", JSON.stringify({
-          token: `ens_${Date.now()}`,
+          token: token,
           userId: userData.id,
           expiresAt: sessionResult.data.expiresAt,
         }));
@@ -209,15 +211,16 @@ export const EnhancedAuthProvider = ({ children }: EnhancedAuthProviderProps) =>
       
       if (result.success && result.data) {
         // User exists, log them in
+        const token = `wallet_${Date.now()}`;
         const sessionResult = await userService.createSession(
           result.data.id,
-          `wallet_${Date.now()}`,
+          token,
           new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString() // 7 days
         );
 
         if (sessionResult.success && sessionResult.data) {
           localStorage.setItem("morphcash_session", JSON.stringify({
-            token: `wallet_${Date.now()}`,
+            token: token,
             userId: result.data.id,
             expiresAt: sessionResult.data.expiresAt,
           }));
@@ -287,15 +290,16 @@ export const EnhancedAuthProvider = ({ children }: EnhancedAuthProviderProps) =>
       }
 
       // Create session
+      const token = `email_${Date.now()}`;
       const sessionResult = await userService.createSession(
         result.data.id,
-        `email_${Date.now()}`,
+        token,
         new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString() // 7 days
       );
 
       if (sessionResult.success && sessionResult.data) {
         localStorage.setItem("morphcash_session", JSON.stringify({
-          token: `email_${Date.now()}`,
+          token: token,
           userId: result.data.id,
           expiresAt: sessionResult.data.expiresAt,
         }));
@@ -357,15 +361,16 @@ export const EnhancedAuthProvider = ({ children }: EnhancedAuthProviderProps) =>
       }
 
       // Create session
+      const token = `${authMethod}_${Date.now()}`;
       const sessionResult = await userService.createSession(
         result.data.id,
-        `${authMethod}_${Date.now()}`,
+        token,
         new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString() // 7 days
       );
 
       if (sessionResult.success && sessionResult.data) {
         localStorage.setItem("morphcash_session", JSON.stringify({
-          token: `email_${Date.now()}`,
+          token: token,
           userId: result.data.id,
           expiresAt: sessionResult.data.expiresAt,
         }));

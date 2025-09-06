@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import { useVirtualCards } from "~~/hooks/scaffold-eth/useVirtualCards";
+import { usePaymentEvents } from "~~/hooks/scaffold-eth/usePaymentEvents";
+import { useScaffoldWriteContract } from "~~/hooks/scaffold-eth";
 import { useAccount } from "wagmi";
 import { useEnhancedAuth } from "~~/contexts/EnhancedAuthContext";
 import { 
@@ -18,8 +20,10 @@ import { VirtualCardIcon } from "./VirtualCardIcon";
 
 export const VirtualCardsManager = () => {
   const { address } = useAccount();
-  const { user, isAuthenticated } = useEnhancedAuth();
-  const { cards, isLoading, createCard, updateCard, deactivateCard, refetchCards, createError, cardsError } = useVirtualCards();
+  const { user } = useEnhancedAuth();
+  const { cards, isLoading, refetchCards, cardsError } = useVirtualCards();
+  const { isProcessing: isProcessingPayment } = usePaymentEvents();
+  const { writeContractAsync: fundCard } = useScaffoldWriteContract("PaymentContract");
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingCard, setEditingCard] = useState<number | null>(null);
   const [showCardNumbers, setShowCardNumbers] = useState<{ [key: number]: boolean }>({});
@@ -51,40 +55,47 @@ export const VirtualCardsManager = () => {
         throw new Error("User not authenticated");
       }
       
-      // Get session token from localStorage
-      const sessionData = localStorage.getItem("morphcash_session");
-      if (!sessionData) {
-        throw new Error("No active session found");
-      }
-      
-      const session = JSON.parse(sessionData);
-      
       if (address && user.auth_method === 'wallet') {
-        // For wallet users, use smart contract
-        if (!createCard) {
-          throw new Error("createCard function is not available. Please check if the contract is deployed and connected.");
+        // For wallet users, use PaymentContract to fund card
+        console.log("Funding card via PaymentContract...");
+        
+        if (!fundCard) {
+          throw new Error("PaymentContract not available. Please check if the contract is deployed and connected.");
         }
         
-        console.log("Creating card via smart contract...");
-        const result = await createCard({
+        // Generate payment reference
+        const paymentReference = `card_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        
+        // Convert funding amount to wei (assuming it's in ETH)
+        const fundingAmountWei = BigInt(Math.floor(cardData.fundingAmount * 1e18));
+        
+        const result = await fundCard({
+          functionName: "createPayment",
           args: [
-            cardData.cardName,
-            cardData.cardNumber,
-            cardData.cardType,
-            BigInt(cardData.spendingLimit)
-          ],
+            fundingAmountWei, // amount in wei
+            BigInt(Math.floor(cardData.fundingAmount)), // ghsAmount (for reference)
+            "crypto", // paymentMethod
+            paymentReference
+          ] as const,
         });
         
-        console.log("Card creation result:", result);
+        console.log("Card funding result:", result);
         
         if (result) {
-          console.log("Card created successfully, refetching cards...");
-          await refetchCards();
+          console.log("Card funding initiated successfully. Card will be created automatically when payment is processed.");
           setShowCreateModal(false);
+          // The usePaymentEvents hook will automatically create the card when the event is emitted
         }
       } else {
         // For email/ENS users, use API route
         console.log("Creating card via API for email/ENS user...");
+        
+        const sessionData = localStorage.getItem("morphcash_session");
+        if (!sessionData) {
+          throw new Error("No active session found");
+        }
+        
+        const session = JSON.parse(sessionData);
         
         const response = await fetch('/api/cards/create-for-email-user', {
           method: 'POST',
@@ -132,17 +143,8 @@ export const VirtualCardsManager = () => {
     spendingLimit: number;
   }) => {
     try {
-      if (!updateCard) {
-        throw new Error("updateCard function is not available. Please check if the contract is deployed and connected.");
-      }
-      
-      await updateCard!({
-        args: [
-          BigInt(cardIndex),
-          cardData.cardName,
-          BigInt(cardData.spendingLimit)
-        ],
-      });
+      // TODO: Implement database-based card update
+      console.log("Card update functionality needs to be implemented for database cards");
       setEditingCard(null);
       refetchCards();
     } catch (error) {
@@ -152,13 +154,8 @@ export const VirtualCardsManager = () => {
 
   const handleDeactivateCard = async (cardIndex: number) => {
     try {
-      if (!deactivateCard) {
-        throw new Error("deactivateCard function is not available. Please check if the contract is deployed and connected.");
-      }
-      
-      await deactivateCard!({
-        args: [BigInt(cardIndex)],
-      });
+      // TODO: Implement database-based card deactivation
+      console.log("Card deactivation functionality needs to be implemented for database cards");
       refetchCards();
     } catch (error) {
       console.error("Error deactivating card:", error);
@@ -169,16 +166,15 @@ export const VirtualCardsManager = () => {
   console.log("VirtualCardsManager Debug:", {
     address,
     user,
-    isAuthenticated,
     cards,
     isLoading,
     cardsError,
-    createError
+    isProcessingPayment
   });
 
   // Show connection prompt if not authenticated
   // Only show this if we're definitely not authenticated (not just loading)
-  if (!isLoading && !isAuthenticated && !user) {
+  if (!isLoading && !user) {
     return (
       <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6">
         <div className="text-center">
@@ -196,7 +192,7 @@ export const VirtualCardsManager = () => {
   }
 
   // If we're still loading authentication state, show loading
-  if (!isLoading && isAuthenticated === undefined && user === undefined) {
+  if (!isLoading && user === undefined) {
     return (
       <div className="flex items-center justify-center py-12">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>
@@ -205,11 +201,13 @@ export const VirtualCardsManager = () => {
     );
   }
 
-  if (isLoading) {
+  if (isLoading || isProcessingPayment) {
     return (
       <div className="flex items-center justify-center py-12">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>
-        <span className="ml-3 text-gray-600">Loading your virtual cards...</span>
+        <span className="ml-3 text-gray-600">
+          {isProcessingPayment ? "Processing payment and creating card..." : "Loading your virtual cards..."}
+        </span>
       </div>
     );
   }

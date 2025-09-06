@@ -41,7 +41,7 @@ export const useEnhancedVirtualCards = () => {
     refetch: refetchOnChainCards, 
     error: onChainError 
   } = useScaffoldReadContract({
-    contractName: "VirtualCardContract",
+    contractName: "VirtualCardContractV2",
     functionName: "getUserVirtualCards",
     args: address ? [address] : [undefined],
     query: {
@@ -50,9 +50,9 @@ export const useEnhancedVirtualCards = () => {
   });
 
   // Write functions for smart contract
-  const { writeContractAsync: createCardContract, isPending: isCreating } = useScaffoldWriteContract("VirtualCardContract");
-  const { writeContractAsync: updateCardContract, isPending: isUpdating } = useScaffoldWriteContract("VirtualCardContract");
-  const { writeContractAsync: deactivateCardContract, isPending: isDeactivating } = useScaffoldWriteContract("VirtualCardContract");
+  const { writeContractAsync: createCardContract, isPending: isCreating } = useScaffoldWriteContract("VirtualCardContractV2");
+  const { writeContractAsync: updateCardContract, isPending: isUpdating } = useScaffoldWriteContract("VirtualCardContractV2");
+  const { writeContractAsync: deactivateCardContract, isPending: isDeactivating } = useScaffoldWriteContract("VirtualCardContractV2");
 
   // Load cards from database
   const loadCards = async () => {

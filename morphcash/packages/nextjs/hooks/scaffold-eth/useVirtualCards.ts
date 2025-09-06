@@ -23,25 +23,8 @@ export const useVirtualCards = () => {
   const [isDbLoading, setIsDbLoading] = useState(false);
   const [dbError, setDbError] = useState<Error | null>(null);
 
-  // Read user's virtual cards from contract - only call when address is available
-  const { data: contractCards, isLoading: isContractLoading, refetch: refetchContractCards, error: contractError } = useScaffoldReadContract({
-    contractName: "VirtualCardContract",
-    functionName: "getUserVirtualCards",
-    args: address ? [address] : [undefined],
-    query: {
-      enabled: !!address, // Only run query when address is available
-    },
-  });
-
-  // Read user's card count from contract - only call when address is available
-  const { data: contractCardCount } = useScaffoldReadContract({
-    contractName: "VirtualCardContract",
-    functionName: "getUserCardCount",
-    args: address ? [address] : [undefined],
-    query: {
-      enabled: !!address, // Only run query when address is available
-    },
-  });
+  // Note: Contract-based card reading is disabled since we're using payment events
+  // All cards are now stored in the database and created via payment events
 
   // Fetch cards from database for email/ENS users
   const fetchDbCards = async () => {
@@ -77,45 +60,32 @@ export const useVirtualCards = () => {
     }
   };
 
-  // Fetch database cards when user is authenticated but has no wallet address
+  // Fetch database cards when user is authenticated
   useEffect(() => {
-    if (isAuthenticated && user && !address) {
+    if (isAuthenticated && user) {
       fetchDbCards();
     }
-  }, [isAuthenticated, user, address]);
+  }, [isAuthenticated, user]);
 
-  // Write functions
-  const { writeContractAsync: createCard, isPending: isCreating, error: createError } = useScaffoldWriteContract("VirtualCardContract");
-  const { writeContractAsync: updateCard, isPending: isUpdating } = useScaffoldWriteContract("VirtualCardContract");
-  const { writeContractAsync: deactivateCard, isPending: isDeactivating } = useScaffoldWriteContract("VirtualCardContract");
+  // Note: Update and deactivate functions are disabled since we're using database-only approach
+  // All card management is now handled through the database
 
-  // Determine which cards to use and loading state
-  const cards = address ? contractCards as VirtualCard[] | undefined : dbCards;
-  const cardCount = address ? contractCardCount as bigint | undefined : (dbCards ? BigInt(dbCards.length) : undefined);
-  const isLoading = address ? isContractLoading : isDbLoading;
-  const cardsError = address ? contractError : dbError;
+  // Use database cards for all users
+  const cards = dbCards;
+  const cardCount = dbCards ? BigInt(dbCards.length) : undefined;
+  const isLoading = isDbLoading;
+  const cardsError = dbError;
 
   // Refetch function
   const refetchCards = async () => {
-    if (address) {
-      refetchContractCards();
-    } else {
-      await fetchDbCards();
-    }
+    await fetchDbCards();
   };
 
   return {
     cards,
     cardCount,
     isLoading,
-    isCreating,
-    isUpdating,
-    isDeactivating,
-    createCard: createCard ? (args: any) => createCard({ functionName: "createVirtualCard", args }) : (() => { throw new Error("createCard not available. Contract may not be deployed or connected."); }),
-    updateCard: updateCard ? (args: any) => updateCard({ functionName: "updateVirtualCard", args }) : undefined,
-    deactivateCard: deactivateCard ? (args: any) => deactivateCard({ functionName: "deactivateVirtualCard", args }) : undefined,
     refetchCards,
-    createError,
     cardsError,
   };
 };

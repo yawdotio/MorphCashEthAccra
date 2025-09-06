@@ -5,41 +5,42 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 
 /**
- * PaymentContract - Payment Verification and Processing
- * Handles payment creation, verification, and processing
+ * PaymentContract - Blockchain Payment Processing for Card Funding
+ * Handles ETH payments from ENS/connected wallets via Coinbase integration
+ * Emits events for frontend to handle Supabase card creation
  * @author MorphCash Team
  */
 contract PaymentContract is Ownable, ReentrancyGuard {
-    // Payment Struct
-    struct Payment {
-        uint256 paymentId;
+    // Card Funding Struct
+    struct CardFunding {
+        uint256 fundingId;
         address user;
         uint256 amount; // Amount in wei (ETH)
         uint256 ghsAmount; // Amount in GHS (for reference)
-        string paymentMethod; // "mobile_money" or "crypto"
+        string cardType; // Visa, Mastercard, etc.
         string paymentReference;
-        string transactionId;
-        bool isVerified;
+        string transactionHash;
         bool isProcessed;
         uint256 createdAt;
-        uint256 verifiedAt;
     }
 
     // State Variables
     address public immutable contractOwner;
+    uint256 public minimumFundingAmount = 0.001 ether; // Minimum 0.001 ETH
+    uint256 public maximumFundingAmount = 10 ether; // Maximum 10 ETH
     
     // Mappings
-    mapping(uint256 => Payment) public payments;
-    mapping(string => uint256) public paymentReferenceToPaymentId;
-    mapping(address => uint256[]) public userPayments;
+    mapping(uint256 => CardFunding) public cardFundings;
+    mapping(string => uint256) public paymentReferenceToFundingId;
+    mapping(address => uint256[]) public userFundings;
     
     // Arrays
-    uint256 public nextPaymentId = 1;
+    uint256 public nextFundingId = 1;
 
     // Events
-    event PaymentCreated(uint256 indexed paymentId, address indexed user, uint256 amount, string paymentReference);
-    event PaymentVerified(uint256 indexed paymentId, address indexed user, string transactionId);
-    event PaymentProcessed(uint256 indexed paymentId, address indexed user);
+    event CardFundingInitiated(uint256 indexed fundingId, address indexed user, uint256 amount, string paymentReference);
+    event CardFundingSuccess(uint256 indexed fundingId, address indexed user, uint256 amount, string cardType, string transactionHash);
+    event CardFundingFailed(uint256 indexed fundingId, address indexed user, string reason);
 
     // Constructor
     constructor(address _owner) {
@@ -54,153 +55,196 @@ contract PaymentContract is Ownable, ReentrancyGuard {
     }
 
     /**
-     * @dev Create a payment record for verification
-     * @param amount Amount in wei (ETH)
+     * @dev Fund a virtual card with ETH payment
+     * This function is called when a user wants to fund their virtual card
+     * The payment is processed immediately and events are emitted for frontend handling
      * @param ghsAmount Amount in GHS (for reference)
-     * @param paymentMethod Payment method ("mobile_money" or "crypto")
-     * @param paymentReference Payment reference
-     * @return paymentId The created payment ID
+     * @param cardType Type of card (Visa, Mastercard, etc.)
+     * @param paymentReference Payment reference for tracking
      */
-    function createPayment(
-        uint256 amount,
+    function fundCard(
         uint256 ghsAmount,
-        string memory paymentMethod,
+        string memory cardType,
         string memory paymentReference
-    ) external nonReentrant returns (uint256) {
-        require(amount > 0, "Amount must be greater than 0");
+    ) external payable nonReentrant {
+        require(msg.value >= minimumFundingAmount, "Amount below minimum");
+        require(msg.value <= maximumFundingAmount, "Amount above maximum");
         require(bytes(paymentReference).length > 0, "Reference cannot be empty");
-        require(paymentReferenceToPaymentId[paymentReference] == 0, "Reference already exists");
+        require(paymentReferenceToFundingId[paymentReference] == 0, "Reference already exists");
+        require(bytes(cardType).length > 0, "Card type cannot be empty");
         
-        uint256 paymentId = nextPaymentId++;
+        uint256 fundingId = nextFundingId++;
         
-        Payment memory newPayment = Payment({
-            paymentId: paymentId,
+        CardFunding memory newFunding = CardFunding({
+            fundingId: fundingId,
             user: msg.sender,
-            amount: amount,
+            amount: msg.value,
             ghsAmount: ghsAmount,
-            paymentMethod: paymentMethod,
+            cardType: cardType,
             paymentReference: paymentReference,
-            transactionId: "",
-            isVerified: false,
+            transactionHash: "",
             isProcessed: false,
-            createdAt: block.timestamp,
-            verifiedAt: 0
+            createdAt: block.timestamp
         });
         
-        payments[paymentId] = newPayment;
-        paymentReferenceToPaymentId[paymentReference] = paymentId;
-        userPayments[msg.sender].push(paymentId);
+        cardFundings[fundingId] = newFunding;
+        paymentReferenceToFundingId[paymentReference] = fundingId;
+        userFundings[msg.sender].push(fundingId);
         
-        emit PaymentCreated(paymentId, msg.sender, amount, paymentReference);
+        emit CardFundingInitiated(fundingId, msg.sender, msg.value, paymentReference);
         
-        return paymentId;
+        // Process the funding immediately and emit success event
+        _processCardFunding(fundingId);
     }
 
     /**
-     * @dev Verify a payment (called by backend after payment confirmation)
-     * @param paymentId The payment ID to verify
-     * @param transactionId The transaction ID from payment provider
+     * @dev Internal function to process card funding
+     * @param fundingId The funding ID to process
      */
-    function verifyPayment(
-        uint256 paymentId,
-        string memory transactionId
-    ) external isOwner {
-        require(payments[paymentId].paymentId != 0, "Payment does not exist");
-        require(!payments[paymentId].isVerified, "Payment already verified");
-        require(bytes(transactionId).length > 0, "Transaction ID cannot be empty");
+    function _processCardFunding(uint256 fundingId) internal {
+        CardFunding storage funding = cardFundings[fundingId];
+        require(funding.fundingId != 0, "Funding does not exist");
+        require(!funding.isProcessed, "Funding already processed");
         
-        payments[paymentId].isVerified = true;
-        payments[paymentId].transactionId = transactionId;
-        payments[paymentId].verifiedAt = block.timestamp;
+        // Set transaction hash (in a real implementation, this would come from the actual transaction)
+        funding.transactionHash = _generateTransactionHash(fundingId);
+        funding.isProcessed = true;
         
-        emit PaymentVerified(paymentId, payments[paymentId].user, transactionId);
+        emit CardFundingSuccess(fundingId, funding.user, funding.amount, funding.cardType, funding.transactionHash);
     }
 
     /**
-     * @dev Mark a payment as processed
-     * @param paymentId The payment ID to process
+     * @dev Generate a transaction hash for the funding
+     * In a real implementation, this would be the actual transaction hash
+     * @param fundingId The funding ID
+     * @return A generated transaction hash
      */
-    function processPayment(uint256 paymentId) external isOwner {
-        require(payments[paymentId].paymentId != 0, "Payment does not exist");
-        require(payments[paymentId].isVerified, "Payment not verified");
-        require(!payments[paymentId].isProcessed, "Payment already processed");
-        
-        payments[paymentId].isProcessed = true;
-        
-        emit PaymentProcessed(paymentId, payments[paymentId].user);
+    function _generateTransactionHash(uint256 fundingId) internal view returns (string memory) {
+        return string(abi.encodePacked(
+            "0x",
+            _toHexString(block.timestamp),
+            _toHexString(fundingId),
+            _toHexString(uint256(uint160(msg.sender)))
+        ));
     }
 
     /**
-     * @dev Get payment details by ID
-     * @param paymentId The payment ID
-     * @return The payment data
+     * @dev Convert uint256 to hex string
+     * @param value The value to convert
+     * @return The hex string representation
      */
-    function getPayment(uint256 paymentId) external view returns (Payment memory) {
-        require(payments[paymentId].paymentId != 0, "Payment does not exist");
-        return payments[paymentId];
+    function _toHexString(uint256 value) internal pure returns (string memory) {
+        if (value == 0) {
+            return "0";
+        }
+        uint256 temp = value;
+        uint256 digits;
+        while (temp != 0) {
+            digits++;
+            temp >>= 4;
+        }
+        bytes memory buffer = new bytes(digits);
+        for (uint256 i = digits; i > 0; i--) {
+            buffer[i - 1] = bytes16("0123456789abcdef")[value & 0xf];
+            value >>= 4;
+        }
+        return string(buffer);
     }
 
     /**
-     * @dev Get payment by reference
+     * @dev Set minimum and maximum funding amounts (owner only)
+     * @param _minimumAmount Minimum funding amount in wei
+     * @param _maximumAmount Maximum funding amount in wei
+     */
+    function setFundingLimits(uint256 _minimumAmount, uint256 _maximumAmount) external isOwner {
+        require(_minimumAmount > 0, "Minimum amount must be greater than 0");
+        require(_maximumAmount > _minimumAmount, "Maximum must be greater than minimum");
+        
+        minimumFundingAmount = _minimumAmount;
+        maximumFundingAmount = _maximumAmount;
+    }
+
+    /**
+     * @dev Withdraw contract balance (owner only)
+     * @param amount Amount to withdraw in wei
+     */
+    function withdraw(uint256 amount) external isOwner {
+        require(amount <= address(this).balance, "Insufficient balance");
+        require(amount > 0, "Amount must be greater than 0");
+        
+        payable(contractOwner).transfer(amount);
+    }
+
+    /**
+     * @dev Emergency withdraw all funds (owner only)
+     */
+    function emergencyWithdraw() external isOwner {
+        uint256 balance = address(this).balance;
+        require(balance > 0, "No funds to withdraw");
+        
+        payable(contractOwner).transfer(balance);
+    }
+
+    /**
+     * @dev Get card funding details by ID
+     * @param fundingId The funding ID
+     * @return The card funding data
+     */
+    function getCardFunding(uint256 fundingId) external view returns (CardFunding memory) {
+        require(cardFundings[fundingId].fundingId != 0, "Funding does not exist");
+        return cardFundings[fundingId];
+    }
+
+    /**
+     * @dev Get card funding by reference
      * @param paymentReference The payment reference
-     * @return The payment data
+     * @return The card funding data
      */
-    function getPaymentByReference(string memory paymentReference) external view returns (Payment memory) {
-        uint256 paymentId = paymentReferenceToPaymentId[paymentReference];
-        require(paymentId != 0, "Payment not found");
-        return payments[paymentId];
+    function getCardFundingByReference(string memory paymentReference) external view returns (CardFunding memory) {
+        uint256 fundingId = paymentReferenceToFundingId[paymentReference];
+        require(fundingId != 0, "Funding not found");
+        return cardFundings[fundingId];
     }
 
     /**
-     * @dev Get all payments for a user
+     * @dev Get all card fundings for a user
      * @param userAddress The user's address
-     * @return Array of payment IDs
+     * @return Array of funding IDs
      */
-    function getUserPayments(address userAddress) external view returns (uint256[] memory) {
-        return userPayments[userAddress];
+    function getUserCardFundings(address userAddress) external view returns (uint256[] memory) {
+        return userFundings[userAddress];
     }
 
     /**
-     * @dev Check if a payment is verified
-     * @param paymentId The payment ID
-     * @return True if verified, false otherwise
-     */
-    function isPaymentVerified(uint256 paymentId) external view returns (bool) {
-        require(payments[paymentId].paymentId != 0, "Payment does not exist");
-        return payments[paymentId].isVerified;
-    }
-
-    /**
-     * @dev Check if a payment is processed
-     * @param paymentId The payment ID
+     * @dev Check if a card funding is processed
+     * @param fundingId The funding ID
      * @return True if processed, false otherwise
      */
-    function isPaymentProcessed(uint256 paymentId) external view returns (bool) {
-        require(payments[paymentId].paymentId != 0, "Payment does not exist");
-        return payments[paymentId].isProcessed;
+    function isCardFundingProcessed(uint256 fundingId) external view returns (bool) {
+        require(cardFundings[fundingId].fundingId != 0, "Funding does not exist");
+        return cardFundings[fundingId].isProcessed;
     }
 
     /**
-     * @dev Get total number of payments
-     * @return The total number of payments
+     * @dev Get total number of card fundings
+     * @return The total number of fundings
      */
-    function getTotalPayments() external view returns (uint256) {
-        return nextPaymentId - 1;
+    function getTotalCardFundings() external view returns (uint256) {
+        return nextFundingId - 1;
     }
 
     /**
-     * @dev Get payments by status
-     * @param isVerified Whether to filter by verified status
+     * @dev Get card fundings by processed status
      * @param isProcessed Whether to filter by processed status
-     * @return Array of payment IDs matching the criteria
+     * @return Array of funding IDs matching the criteria
      */
-    function getPaymentsByStatus(bool isVerified, bool isProcessed) external view returns (uint256[] memory) {
-        uint256[] memory matchingPayments = new uint256[](nextPaymentId - 1);
+    function getCardFundingsByStatus(bool isProcessed) external view returns (uint256[] memory) {
+        uint256[] memory matchingFundings = new uint256[](nextFundingId - 1);
         uint256 count = 0;
         
-        for (uint256 i = 1; i < nextPaymentId; i++) {
-            if (payments[i].isVerified == isVerified && payments[i].isProcessed == isProcessed) {
-                matchingPayments[count] = i;
+        for (uint256 i = 1; i < nextFundingId; i++) {
+            if (cardFundings[i].isProcessed == isProcessed) {
+                matchingFundings[count] = i;
                 count++;
             }
         }
@@ -208,10 +252,27 @@ contract PaymentContract is Ownable, ReentrancyGuard {
         // Resize array to actual count
         uint256[] memory result = new uint256[](count);
         for (uint256 i = 0; i < count; i++) {
-            result[i] = matchingPayments[i];
+            result[i] = matchingFundings[i];
         }
         
         return result;
+    }
+
+    /**
+     * @dev Get contract balance
+     * @return The contract's ETH balance
+     */
+    function getContractBalance() external view returns (uint256) {
+        return address(this).balance;
+    }
+
+    /**
+     * @dev Get funding limits
+     * @return minimumAmount The minimum funding amount
+     * @return maximumAmount The maximum funding amount
+     */
+    function getFundingLimits() external view returns (uint256 minimumAmount, uint256 maximumAmount) {
+        return (minimumFundingAmount, maximumFundingAmount);
     }
 
     /**

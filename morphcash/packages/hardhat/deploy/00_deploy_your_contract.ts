@@ -22,14 +22,6 @@ const deployMorphCashContracts: DeployFunction = async function (hre: HardhatRun
   const { deployer } = await hre.getNamedAccounts();
   const { deploy } = hre.deployments;
 
-  // Deploy GreetingContract
-  await deploy("GreetingContract", {
-    from: deployer,
-    args: [deployer],
-    log: true,
-    autoMine: true,
-  });
-
   // Deploy ENSProfileContract
   await deploy("ENSProfileContract", {
     from: deployer,
@@ -38,13 +30,6 @@ const deployMorphCashContracts: DeployFunction = async function (hre: HardhatRun
     autoMine: true,
   });
 
-  // Deploy VirtualCardContract
-  await deploy("VirtualCardContract", {
-    from: deployer,
-    args: [deployer],
-    log: true,
-    autoMine: true,
-  });
 
   // Deploy PaymentContract
   await deploy("PaymentContract", {
@@ -55,14 +40,10 @@ const deployMorphCashContracts: DeployFunction = async function (hre: HardhatRun
   });
 
   // Get the deployed contracts to interact with them after deploying.
-  const greetingContract = await hre.ethers.getContract<Contract>("GreetingContract", deployer);
   const ensProfileContract = await hre.ethers.getContract<Contract>("ENSProfileContract", deployer);
-  const virtualCardContract = await hre.ethers.getContract<Contract>("VirtualCardContract", deployer);
   const paymentContract = await hre.ethers.getContract<Contract>("PaymentContract", deployer);
 
-  console.log("👋 Initial greeting:", await greetingContract.greeting());
   console.log("📝 ENS Profile Contract deployed at:", await ensProfileContract.getAddress());
-  console.log("💳 Virtual Card Contract deployed at:", await virtualCardContract.getAddress());
   console.log("💰 Payment Contract deployed at:", await paymentContract.getAddress());
 };
 
