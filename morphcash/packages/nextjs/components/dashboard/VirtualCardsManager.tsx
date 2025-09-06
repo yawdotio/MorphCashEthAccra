@@ -70,13 +70,13 @@ export const VirtualCardsManager = () => {
         const fundingAmountWei = BigInt(Math.floor(cardData.fundingAmount * 1e18));
         
         const result = await fundCard({
-          functionName: "createPayment",
+          functionName: "fundCard",
           args: [
-            fundingAmountWei, // amount in wei
-            BigInt(Math.floor(cardData.fundingAmount)), // ghsAmount (for reference)
-            "crypto", // paymentMethod
+            BigInt(Math.floor(cardData.fundingAmount * 100)), // ghsAmount in cents
+            "MorphCard", // cardType
             paymentReference
           ] as const,
+          value: fundingAmountWei, // amount in wei
         });
         
         console.log("Card funding result:", result);

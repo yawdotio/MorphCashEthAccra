@@ -13,6 +13,7 @@ import { paymentService, SupportedCurrency } from "~~/services/paymentService";
 import { useCopyToClipboard } from "~~/hooks/scaffold-eth";
 import { useScaffoldReadContract } from "~~/hooks/scaffold-eth/useScaffoldReadContract";
 import { useScaffoldWriteContract } from "~~/hooks/scaffold-eth/useScaffoldWriteContract";
+import { useScaffoldWatchContractEvent } from "~~/hooks/scaffold-eth/useScaffoldWatchContractEvent";
 import { useAccount } from "wagmi";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
 import coinbaseService from "~~/services/coinbaseService";
@@ -72,28 +73,57 @@ export const CryptoPaymentModal = ({
   // Get wallet connection
   const { address } = useAccount();
 
-  // Smart contract hooks for payment verification
-  const { data: payment, refetch: refetchPayment } = useScaffoldReadContract({
-    contractName: "PaymentContract",
-    functionName: "getPaymentByReference",
-    args: paymentReference ? [paymentReference] : [undefined],
-    query: {
-      enabled: !!paymentReference && !!address,
-    },
-  });
-
-  const { data: isProcessed, refetch: refetchIsProcessed } = useScaffoldReadContract({
-    contractName: "PaymentContract",
-    functionName: "isPaymentProcessed",
-    args: fundingId ? [BigInt(fundingId)] : [undefined],
-    query: {
-      enabled: !!fundingId && !!address,
-    },
-  });
+  // Note: Payment verification now handled via event listeners
 
   // Write contract hook for funding card
   const { writeContractAsync: fundCardAsync, isPending: isFundingPending } = useScaffoldWriteContract({
     contractName: "PaymentContract",
+  });
+
+  // Event listeners for PaymentContract events
+  useScaffoldWatchContractEvent({
+    contractName: "PaymentContract",
+    eventName: "CardFundingInitiated",
+    onLogs: (logs) => {
+      console.log('🎯 CardFundingInitiated event received:', logs);
+      logs.forEach((log) => {
+        const { fundingId, user, amount, paymentReference } = log.args;
+        if (user === address && paymentReference === paymentReference) {
+          console.log('✅ Payment initiated for current user:', { fundingId, amount, paymentReference });
+          setFundingId(Number(fundingId));
+        }
+      });
+    },
+  });
+
+  useScaffoldWatchContractEvent({
+    contractName: "PaymentContract",
+    eventName: "CardFundingSuccess",
+    onLogs: (logs) => {
+      console.log('🎉 CardFundingSuccess event received:', logs);
+      logs.forEach((log) => {
+        const { fundingId, user, amount, cardType, transactionHash } = log.args;
+        if (user === address && fundingId && Number(fundingId) === Number(fundingId)) {
+          console.log('✅ Payment successful, creating card via API:', { fundingId, amount, cardType, transactionHash });
+          handlePaymentSuccess(Number(fundingId), amount as bigint, cardType as string, transactionHash as string);
+        }
+      });
+    },
+  });
+
+  useScaffoldWatchContractEvent({
+    contractName: "PaymentContract",
+    eventName: "CardFundingFailed",
+    onLogs: (logs) => {
+      console.log('❌ CardFundingFailed event received:', logs);
+      logs.forEach((log) => {
+        const { fundingId, user, reason } = log.args;
+        if (user === address && fundingId && Number(fundingId) === Number(fundingId)) {
+          console.log('❌ Payment failed:', { fundingId, reason });
+          setPaymentStatus('failed');
+        }
+      });
+    },
   });
 
   // Generate payment address and reference
@@ -214,64 +244,15 @@ export const CryptoPaymentModal = ({
     return () => clearInterval(interval);
   }, [paymentStatus, timeRemaining]);
 
-  // Smart contract payment verification
-  useEffect(() => {
-    if (paymentStatus === 'waiting' && payment && fundingId) {
-      console.log('🔍 Payment found in contract:', payment);
-      console.log('📊 Payment ID:', fundingId);
-      console.log('✅ Is Processed:', isProcessed);
-      
-      if (isProcessed) {
-        console.log('✅ Payment confirmed by smart contract!');
-        setPaymentStatus('confirming');
-        
-        // Simulate confirmation delay
-        setTimeout(() => {
-          console.log('✅ Payment fully confirmed!');
-          setPaymentStatus('success');
-          setTimeout(() => {
-            console.log('🎉 Creating virtual card...');
-            onPaymentSuccess();
-          }, 2000);
-        }, 3000);
-      }
-    }
-  }, [payment, fundingId, isProcessed, paymentStatus, onPaymentSuccess]);
-
-  // Monitor payment status via smart contract
+  // Payment status monitoring (simplified since we use events now)
   useEffect(() => {
     if (paymentStatus === 'waiting' && paymentReference && address) {
-      console.log('🔍 Starting smart contract payment verification...');
+      console.log('🔍 Waiting for payment events...');
       console.log('📍 Payment Reference:', paymentReference);
       console.log('👤 User Address:', address);
-      
-      const checkPayment = async () => {
-        const interval = setInterval(async () => {
-          try {
-            console.log('🔄 Checking smart contract for payment...');
-            
-            // Refetch payment data from contract
-            await refetchPayment();
-            await refetchIsProcessed();
-            
-            console.log('📊 Current payment data:', payment);
-            console.log('📊 Is processed:', isProcessed);
-            
-          } catch (error) {
-            console.error('❌ Error checking payment in contract:', error);
-          }
-        }, 5000); // Check every 5 seconds
-
-        // Cleanup after 15 minutes
-        setTimeout(() => {
-          console.log('⏰ Payment timeout - clearing interval');
-          clearInterval(interval);
-        }, 900000);
-      };
-
-      checkPayment();
+      console.log('📊 Funding ID:', fundingId);
     }
-  }, [paymentStatus, paymentReference, address, refetchPayment, refetchIsProcessed, payment, isProcessed]);
+  }, [paymentStatus, paymentReference, address, fundingId]);
 
   // Load exchange rate and crypto options when modal opens
   useEffect(() => {
@@ -294,15 +275,15 @@ export const CryptoPaymentModal = ({
       
       setPaymentStatus('confirming');
       
-      // Create payment record in smart contract
+      // Fund card via smart contract (payable function)
       const paymentId = await fundCardAsync({
-        functionName: "createPayment",
+        functionName: "fundCard",
         args: [
-          BigInt(Math.floor(selectedCrypto.amount * 1e18)), // Amount in wei
           BigInt(Math.floor(fundingAmount * 100)), // GHS amount in cents
-          "crypto", // Payment method
+          "MorphCard", // Card type
           paymentReference // Payment reference as string
         ],
+        value: BigInt(Math.floor(selectedCrypto.amount * 1e18)), // Amount in wei
       });
 
       console.log('✅ Payment record created with ID:', paymentId);
@@ -355,15 +336,15 @@ export const CryptoPaymentModal = ({
     try {
       setPaymentStatus('confirming');
       
-      // Create payment record in smart contract
+      // Fund card via smart contract (payable function)
       const paymentId = await fundCardAsync({
-        functionName: "createPayment",
+        functionName: "fundCard",
         args: [
-          BigInt(Math.floor(selectedCrypto.amount * 1e18)), // Amount in wei
           BigInt(Math.floor(fundingAmount * 100)), // GHS amount in cents
-          "crypto", // Payment method
+          "MorphCard", // Card type
           paymentReference // Payment reference as string
         ],
+        value: BigInt(Math.floor(selectedCrypto.amount * 1e18)), // Amount in wei
       });
 
       console.log('✅ Test payment record created with ID:', paymentId);
@@ -379,6 +360,44 @@ export const CryptoPaymentModal = ({
       
     } catch (error) {
       console.error('❌ Test payment failed:', error);
+      setPaymentStatus('failed');
+    }
+  };
+
+  // Handle payment success from contract events
+  const handlePaymentSuccess = async (fundingId: number, amount: bigint, cardType: string, transactionHash: string) => {
+    try {
+      console.log('🎉 Payment successful, creating card via API...');
+      setPaymentStatus('confirming');
+      
+      // Call the card creation API
+      const response = await fetch('/api/cards/create-verified', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          paymentReference,
+          cardName: `MorphCard ${cardType}`,
+          spendingLimit: Math.floor(Number(amount) / 1e18), // Convert from wei to ETH
+          userAddress: address,
+        }),
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        console.log('✅ Card created successfully:', result);
+        setPaymentStatus('success');
+        
+        setTimeout(() => {
+          onPaymentSuccess();
+        }, 2000);
+      } else {
+        console.error('❌ Card creation failed:', await response.text());
+        setPaymentStatus('failed');
+      }
+    } catch (error) {
+      console.error('❌ Error creating card:', error);
       setPaymentStatus('failed');
     }
   };
