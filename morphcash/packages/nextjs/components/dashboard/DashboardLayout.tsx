@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+
 import {
   ArrowLeftOnRectangleIcon,
   BanknotesIcon,
@@ -11,6 +12,14 @@ import {
   Cog6ToothIcon,
   CreditCardIcon,
   HomeIcon,
+
+import { useEnhancedAuth } from "~~/contexts/EnhancedAuthContext";
+import { 
+  HomeIcon, 
+  CreditCardIcon, 
+  BanknotesIcon, 
+  PlusIcon, 
+
   PaperAirplaneIcon,
   PlusIcon,
   QuestionMarkCircleIcon,
@@ -42,7 +51,7 @@ interface DashboardLayoutProps {
 export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
   const pathname = usePathname();
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const { user, logout } = useAuth();
+  const { user, logout } = useEnhancedAuth();
 
   return (
     <div className="min-h-screen bg-base-200">
@@ -111,9 +120,17 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
                 </div>
               )}
               <div className="ml-3">
+
                 <p className="text-sm font-medium text-base-content">{user?.ensName || user?.email || "User"}</p>
                 <p className="text-xs text-base-content/70 capitalize">
                   {user?.accountType || "Basic"} Package • {user?.authMethod?.toUpperCase() || "AUTH"}
+
+                <p className="text-sm font-medium text-gray-900">
+                  {user?.ensName || user?.email || 'User'}
+                </p>
+                <p className="text-xs text-gray-500 capitalize">
+                  {user?.auth_method?.toUpperCase() || 'AUTH'} Authentication
+
                 </p>
               </div>
             </div>
@@ -170,9 +187,17 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
                   </div>
                 )}
                 <div className="ml-3">
+
                   <p className="text-sm font-medium text-base-content">{user?.ensName || user?.email || "User"}</p>
                   <p className="text-xs text-base-content/70 capitalize">
                     {user?.accountType || "Basic"} Package • {user?.authMethod?.toUpperCase() || "AUTH"}
+
+                  <p className="text-sm font-medium text-gray-900">
+                    {user?.ensName || user?.email || 'User'}
+                  </p>
+                  <p className="text-xs text-gray-500 capitalize">
+                    {user?.auth_method?.toUpperCase() || 'AUTH'} Authentication
+
                   </p>
                 </div>
               </div>

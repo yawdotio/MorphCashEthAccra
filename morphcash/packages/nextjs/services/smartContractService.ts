@@ -4,7 +4,7 @@
  */
 
 import { useScaffoldWriteContract, useScaffoldReadContract } from "~~/hooks/scaffold-eth";
-import { keccak256, toUtf8Bytes } from "viem";
+import { keccak256, stringToBytes } from "viem";
 import { normalize } from "viem/ens";
 
 export interface UserProfile {
@@ -38,7 +38,7 @@ class SmartContractService {
   ): Promise<SmartContractResult> {
     try {
       const normalizedName = normalize(ensName);
-      const ensHash = keccak256(toUtf8Bytes(normalizedName));
+      const ensHash = keccak256(stringToBytes(normalizedName));
       
       // This would use the useScaffoldWriteContract hook in a React component
       // For now, we'll return a mock result
@@ -77,7 +77,7 @@ class SmartContractService {
   ): Promise<SmartContractResult> {
     try {
       const normalizedName = normalize(ensName);
-      const ensHash = keccak256(toUtf8Bytes(normalizedName));
+      const ensHash = keccak256(stringToBytes(normalizedName));
       
       console.log("Updating ENS profile on smart contract:", {
         ensName,
@@ -105,7 +105,7 @@ class SmartContractService {
   async getENSProfile(ensName: string): Promise<UserProfile | null> {
     try {
       const normalizedName = normalize(ensName);
-      const ensHash = keccak256(toUtf8Bytes(normalizedName));
+      const ensHash = keccak256(stringToBytes(normalizedName));
       
       console.log("Getting ENS profile from smart contract:", {
         ensName,
@@ -140,7 +140,7 @@ class SmartContractService {
   generateENSHash(ensName: string): string {
     try {
       const normalizedName = normalize(ensName);
-      return keccak256(toUtf8Bytes(normalizedName));
+      return keccak256(stringToBytes(normalizedName));
     } catch (error) {
       console.error("Error generating ENS hash:", error);
       throw new Error("Invalid ENS name format");

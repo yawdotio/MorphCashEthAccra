@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useVirtualCards } from "~~/hooks/scaffold-eth/useVirtualCards";
 import { useAccount } from "wagmi";
+import { useEnhancedAuth } from "~~/contexts/EnhancedAuthContext";
 import { 
   PlusIcon, 
   CreditCardIcon, 
@@ -17,6 +18,7 @@ import { VirtualCardIcon } from "./VirtualCardIcon";
 
 export const VirtualCardsManager = () => {
   const { address } = useAccount();
+  const { user, isAuthenticated } = useEnhancedAuth();
   const { cards, isLoading, createCard, updateCard, deactivateCard, refetchCards, createError, cardsError } = useVirtualCards();
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingCard, setEditingCard] = useState<number | null>(null);
@@ -41,33 +43,78 @@ export const VirtualCardsManager = () => {
   }) => {
     try {
       console.log("Creating card with data:", cardData);
-      console.log("createCard function:", createCard);
-      console.log("createError:", createError);
-      console.log("address:", address);
+      console.log("User:", user);
+      console.log("Address:", address);
+      console.log("Auth method:", user?.auth_method);
       
-      if (!createCard) {
-        throw new Error("createCard function is not available. Please check if the contract is deployed and connected.");
+      if (!user) {
+        throw new Error("User not authenticated");
       }
       
-      console.log("Calling createCard with args:", [
-        cardData.cardName,
-        cardData.cardNumber,
-        cardData.cardType,
-        BigInt(cardData.spendingLimit)
-      ]);
+      // Get session token from localStorage
+      const sessionData = localStorage.getItem("morphcash_session");
+      if (!sessionData) {
+        throw new Error("No active session found");
+      }
       
-      const result = await createCard({
-        args: [
-          cardData.cardName,
-          cardData.cardNumber,
-          cardData.cardType,
-          BigInt(cardData.spendingLimit)
-        ],
-      });
+      const session = JSON.parse(sessionData);
       
-      console.log("Card creation result:", result);
-      setShowCreateModal(false);
-      refetchCards();
+      if (address && user.auth_method === 'wallet') {
+        // For wallet users, use smart contract
+        if (!createCard) {
+          throw new Error("createCard function is not available. Please check if the contract is deployed and connected.");
+        }
+        
+        console.log("Creating card via smart contract...");
+        const result = await createCard({
+          args: [
+            cardData.cardName,
+            cardData.cardNumber,
+            cardData.cardType,
+            BigInt(cardData.spendingLimit)
+          ],
+        });
+        
+        console.log("Card creation result:", result);
+        
+        if (result) {
+          console.log("Card created successfully, refetching cards...");
+          await refetchCards();
+          setShowCreateModal(false);
+        }
+      } else {
+        // For email/ENS users, use API route
+        console.log("Creating card via API for email/ENS user...");
+        
+        const response = await fetch('/api/cards/create-for-email-user', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            userId: user.id,
+            cardName: cardData.cardName,
+            cardNumber: cardData.cardNumber,
+            cardType: cardData.cardType,
+            spendingLimit: cardData.spendingLimit,
+            token: session.token
+          }),
+        });
+        
+        const result = await response.json();
+        
+        if (!response.ok) {
+          throw new Error(result.error || 'Failed to create card');
+        }
+        
+        console.log("Card creation result:", result);
+        
+        if (result.success) {
+          console.log("Card created successfully, refetching cards...");
+          await refetchCards();
+          setShowCreateModal(false);
+        }
+      }
     } catch (error) {
       console.error("Error creating card:", error);
       console.error("Error details:", {
@@ -85,7 +132,11 @@ export const VirtualCardsManager = () => {
     spendingLimit: number;
   }) => {
     try {
-      await updateCard({
+      if (!updateCard) {
+        throw new Error("updateCard function is not available. Please check if the contract is deployed and connected.");
+      }
+      
+      await updateCard!({
         args: [
           BigInt(cardIndex),
           cardData.cardName,
@@ -101,7 +152,11 @@ export const VirtualCardsManager = () => {
 
   const handleDeactivateCard = async (cardIndex: number) => {
     try {
-      await deactivateCard({
+      if (!deactivateCard) {
+        throw new Error("deactivateCard function is not available. Please check if the contract is deployed and connected.");
+      }
+      
+      await deactivateCard!({
         args: [BigInt(cardIndex)],
       });
       refetchCards();
@@ -113,16 +168,48 @@ export const VirtualCardsManager = () => {
   // Debug logging
   console.log("VirtualCardsManager Debug:", {
     address,
+    user,
+    isAuthenticated,
     cards,
     isLoading,
     cardsError,
     createError
   });
 
+  // Show connection prompt if not authenticated
+  // Only show this if we're definitely not authenticated (not just loading)
+  if (!isLoading && !isAuthenticated && !user) {
+    return (
+      <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6">
+        <div className="text-center">
+          <h3 className="text-lg font-medium text-yellow-800 mb-2">Authentication Required</h3>
+          <p className="text-yellow-700 mb-4">Please sign in with your email, wallet, or ENS to view and manage virtual cards.</p>
+          <button 
+            onClick={() => window.location.reload()} 
+            className="bg-yellow-600 text-white px-4 py-2 rounded-lg hover:bg-yellow-700 transition-colors"
+          >
+            Refresh Page
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // If we're still loading authentication state, show loading
+  if (!isLoading && isAuthenticated === undefined && user === undefined) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>
+        <span className="ml-3 text-gray-600">Checking authentication...</span>
+      </div>
+    );
+  }
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-12">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>
+        <span className="ml-3 text-gray-600">Loading your virtual cards...</span>
       </div>
     );
   }
@@ -188,16 +275,19 @@ export const VirtualCardsManager = () => {
       ) : (
         <div className="bg-white rounded-2xl border border-gray-200 p-8">
           <div className="text-center py-12">
-            <div className="w-16 h-16 bg-gray-100 rounded-xl flex items-center justify-center mx-auto mb-4">
-              <CreditCardIcon className="h-8 w-8 text-gray-400" />
+            <div className="w-16 h-16 bg-gradient-to-br from-purple-100 to-blue-100 rounded-xl flex items-center justify-center mx-auto mb-4">
+              <CreditCardIcon className="h-8 w-8 text-purple-600" />
             </div>
-            <h3 className="text-lg font-medium text-gray-900 mb-2">No Virtual Cards Yet</h3>
-            <p className="text-gray-500 mb-6">Create your first virtual card to start making secure payments</p>
+            <h3 className="text-xl font-semibold text-gray-900 mb-2">Create Your First Virtual Card</h3>
+            <p className="text-gray-500 mb-6 max-w-md mx-auto">
+              Get started with secure virtual payments. Create your first virtual card to begin making transactions with enhanced security.
+            </p>
             <button
               onClick={() => setShowCreateModal(true)}
-              className="bg-gradient-to-r from-purple-600 to-blue-600 text-white px-6 py-3 rounded-xl font-medium hover:shadow-lg transition-all duration-200"
+              className="bg-gradient-to-r from-purple-600 to-blue-600 text-white px-8 py-3 rounded-xl font-medium hover:shadow-lg hover:scale-105 transition-all duration-200"
             >
-              Create Virtual Card
+              <PlusIcon className="h-5 w-5 inline mr-2" />
+              Create Your First Card
             </button>
           </div>
         </div>

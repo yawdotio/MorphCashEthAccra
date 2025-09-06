@@ -13,17 +13,21 @@
     "start": "next dev",
     "vercel": "vercel --build-env YARN_ENABLE_IMMUTABLE_INSTALLS=false --build-env ENABLE_EXPERIMENTAL_COREPACK=1 --build-env VERCEL_TELEMETRY_DISABLED=1",
     "vercel:login": "vercel login",
-    "vercel:yolo": "vercel --build-env YARN_ENABLE_IMMUTABLE_INSTALLS=false --build-env ENABLE_EXPERIMENTAL_COREPACK=1 --build-env NEXT_PUBLIC_IGNORE_BUILD_ERROR=true --build-env VERCEL_TELEMETRY_DISABLED=1"
+    "vercel:yolo": "vercel --build-env YARN_ENABLE_IMMUTABLE_INSTALLS=false --build-env ENABLE_EXPERIMENTAL_COREPACK=1 --build-env NEXT_PUBLIC_IGNORE_BUILD_ERROR=true --build-env VERCEL_TELEMETRY_DISABLED=1",
+    "visa:setup-ssl": "node scripts/setup-visa-ssl.js",
+    "visa:test": "echo 'Visit /debug page to test Visa card integration'"
   },
   "dependencies": {
     "@heroicons/react": "~2.1.5",
     "@rainbow-me/rainbowkit": "2.2.8",
+    "@supabase/supabase-js": "^2.57.2",
     "@tanstack/react-query": "~5.59.15",
     "@uniswap/sdk-core": "~5.8.2",
     "@uniswap/v2-sdk": "~4.6.1",
     "blo": "~1.2.0",
     "burner-connector": "0.0.18",
     "daisyui": "5.0.9",
+    "framer-motion": "^12.23.12",
     "kubo-rpc-client": "~5.0.2",
     "next": "~15.2.3",
     "next-nprogress-bar": "~2.3.13",

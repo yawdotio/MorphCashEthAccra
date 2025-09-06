@@ -4,11 +4,19 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+
 import { LoginModal } from "./auth/LoginModal";
 import { ArrowRightOnRectangleIcon, Bars3Icon, BugAntIcon, UserIcon } from "@heroicons/react/24/outline";
 import { FaucetButton, RainbowKitCustomConnectButton } from "~~/components/scaffold-eth";
 import { useAuth } from "~~/contexts/AuthContext";
 import { useOutsideClick } from "~~/hooks/scaffold-eth";
+
+import { Bars3Icon, BugAntIcon, UserIcon, ArrowRightOnRectangleIcon } from "@heroicons/react/24/outline";
+import { FaucetButton, RainbowKitCustomConnectButton } from "~~/components/scaffold-eth";
+import { useOutsideClick } from "~~/hooks/scaffold-eth";
+import { EnhancedLoginModal } from "./auth/EnhancedLoginModal";
+import { useEnhancedAuth } from "~~/contexts/EnhancedAuthContext";
+
 
 type HeaderMenuLink = {
   label: string;
@@ -64,7 +72,7 @@ export const HeaderMenuLinks = () => {
 export const Header = () => {
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [showLoginModal, setShowLoginModal] = useState(false);
-  const { user, logout } = useAuth();
+  const { user, logout } = useEnhancedAuth();
   const router = useRouter();
   const burgerMenuRef = useRef<HTMLDivElement>(null);
   useOutsideClick(
@@ -161,7 +169,14 @@ export const Header = () => {
       </div>
 
       {/* Login Modal - Outside header div */}
+
       <LoginModal isOpen={showLoginModal} onClose={handleCloseLogin} />
+
+      <EnhancedLoginModal
+        isOpen={showLoginModal}
+        onClose={handleCloseLogin}
+      />
+
     </>
   );
 };

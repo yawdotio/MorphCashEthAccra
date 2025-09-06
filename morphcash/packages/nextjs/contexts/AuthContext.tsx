@@ -108,7 +108,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   };
 
   // Email/Password login
-  const loginWithEmail = async (email: string, password: string, displayName: string) => {
+  const loginWithEmail = async (email: string, password: string, displayName?: string) => {
     try {
       const existingUsers = JSON.parse(localStorage.getItem("morphcash_users") || "{}");
       const userData = existingUsers[email.toLowerCase()];
@@ -198,7 +198,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   };
 
   // Email/Password registration
-  const registerWithEmail = async (email: string, password: string, displayName: string) => {
+  const registerWithEmail = async (email: string, password: string, displayName?: string) => {
     try {
       const existingUsers = JSON.parse(localStorage.getItem("morphcash_users") || "{}");
 
@@ -211,7 +211,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         id: userId,
         email: email.toLowerCase(),
         password: password,
-        displayName: displayName.trim(),
+        displayName: displayName?.trim() || "",
         accountType: "basic",
         registeredAt: new Date().toISOString(),
         authMethod: "email",
@@ -382,7 +382,6 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
           ensName: userData.ensName,
           ensAvatar: userData.ensProfile?.avatar,
           email: userData.email,
-          displayName: userData.displayName,
           isAuthenticated: true,
           accountType: userData.accountType as "basic" | "premium" | "enterprise",
           authMethod: "wallet",

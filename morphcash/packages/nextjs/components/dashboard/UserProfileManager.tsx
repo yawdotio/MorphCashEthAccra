@@ -1,17 +1,32 @@
 "use client";
 
 import { useState } from "react";
+<<<<<<< HEAD
+=======
+import { useEnhancedAuth } from "~~/contexts/EnhancedAuthContext";
+import { useAccount } from "wagmi";
+import { 
+  UserIcon, 
+  PencilIcon
+} from "@heroicons/react/24/outline";
+>>>>>>> 35e7e38bd57cd5d92aea9a4b62d5f37a29e2a79b
 import { ENSProfileForm } from "./ENSProfileForm";
 import { PencilIcon, UserIcon } from "@heroicons/react/24/outline";
 import { useAuth } from "~~/contexts/AuthContext";
 
 export const UserProfileManager = () => {
+<<<<<<< HEAD
   const { user } = useAuth();
+=======
+  const { user } = useEnhancedAuth();
+  const { address } = useAccount();
+>>>>>>> 35e7e38bd57cd5d92aea9a4b62d5f37a29e2a79b
   const [isEditingProfile, setIsEditingProfile] = useState(false);
 
   return (
     <div className="space-y-6">
       {/* Profile Content */}
+<<<<<<< HEAD
       <div className="space-y-6">
         {/* Profile Header */}
         <div className="bg-base-100 rounded-lg border border-base-300 p-6">
@@ -35,6 +50,36 @@ export const UserProfileManager = () => {
                 <p className="text-sm text-base-content/60 capitalize">
                   {user?.accountType} Package • {user?.authMethod?.toUpperCase()} Authentication
                 </p>
+=======
+        <div className="space-y-6">
+          {/* Profile Header */}
+          <div className="bg-white rounded-lg border border-gray-200 p-6">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-4">
+                <div className="w-16 h-16 bg-gradient-to-r from-purple-600 to-blue-600 rounded-full flex items-center justify-center">
+                  {user?.ensProfile?.avatar ? (
+                    <img
+                      src={user.ensProfile.avatar}
+                      alt="Profile"
+                      className="w-16 h-16 rounded-full object-cover"
+                    />
+                  ) : (
+                    <UserIcon className="h-8 w-8 text-white" />
+                  )}
+                </div>
+                <div>
+                  <h2 className="text-xl font-semibold text-gray-900">
+                    {user?.ens_profile?.displayName || user?.ens_name || user?.email || 'User'}
+                  </h2>
+                  <p className="text-gray-600">
+                    {user?.ens_name && `@${user.ens_name}`}
+                    {user?.email && ` • ${user.email}`}
+                  </p>
+                  <p className="text-sm text-gray-500 capitalize">
+                    {user?.auth_method?.toUpperCase()} Authentication
+                  </p>
+                </div>
+>>>>>>> 35e7e38bd57cd5d92aea9a4b62d5f37a29e2a79b
               </div>
             </div>
             <button

@@ -23,34 +23,28 @@ export const VirtualCardIcon = ({
 }: VirtualCardIconProps) => {
   const [showDetails, setShowDetails] = useState(false);
 
-  const getCardTypeColor = (cardType: string) => {
-    switch (cardType.toLowerCase()) {
-      case 'visa':
-        return 'from-blue-600 to-blue-800';
-      case 'mastercard':
-        return 'from-red-600 to-yellow-500';
-      case 'american express':
-        return 'from-green-600 to-blue-600';
-      case 'discover':
-        return 'from-orange-500 to-red-500';
-      default:
-        return 'from-purple-600 to-blue-600';
+  const getCardColorByFunds = (spendingLimit: number) => {
+    // Convert spending limit to a scale from 0 to 1
+    const normalizedLimit = Math.min(spendingLimit / 500000, 1); // 5000 GHS = 500000 cents
+    
+    if (normalizedLimit <= 0.1) {
+      return 'from-blue-200 to-blue-400'; // Light blue for low funds
+    } else if (normalizedLimit <= 0.3) {
+      return 'from-blue-300 to-blue-500'; // Medium blue
+    } else if (normalizedLimit <= 0.5) {
+      return 'from-blue-400 to-blue-600'; // Darker blue
+    } else if (normalizedLimit <= 0.7) {
+      return 'from-blue-500 to-purple-600'; // Blue to purple
+    } else if (normalizedLimit <= 0.9) {
+      return 'from-purple-500 to-purple-700'; // Purple
+    } else {
+      return 'from-gray-800 to-black'; // Black for high funds (5000+ GHS)
     }
   };
 
   const getCardTypeIcon = (cardType: string) => {
-    switch (cardType.toLowerCase()) {
-      case 'visa':
-        return 'V';
-      case 'mastercard':
-        return 'M';
-      case 'american express':
-        return 'A';
-      case 'discover':
-        return 'D';
-      default:
-        return 'C';
-    }
+    // Always use 'M' for MorphCard
+    return 'M';
   };
 
   return (
@@ -59,7 +53,7 @@ export const VirtualCardIcon = ({
       <div 
         className={`relative w-32 h-20 rounded-xl shadow-lg cursor-pointer transform transition-all duration-300 hover:scale-105 hover:shadow-xl ${
           card.isActive 
-            ? `bg-gradient-to-br ${getCardTypeColor(card.cardType)}` 
+            ? `bg-gradient-to-br ${getCardColorByFunds(Number(card.spendingLimit))}` 
             : 'bg-gradient-to-br from-gray-400 to-gray-600'
         }`}
         onClick={() => setShowDetails(true)}
@@ -128,7 +122,7 @@ export const VirtualCardIcon = ({
                   </h3>
                   
                   {/* Card Preview */}
-                  <div className={`w-full h-24 rounded-xl shadow-lg mb-6 bg-gradient-to-br ${getCardTypeColor(card.cardType)}`}>
+                  <div className={`w-full h-24 rounded-xl shadow-lg mb-6 bg-gradient-to-br ${getCardColorByFunds(Number(card.spendingLimit))}`}>
                     <div className="p-4 h-full flex flex-col justify-between text-white">
                       <div className="flex justify-between items-start">
                         <div className="w-6 h-6 bg-white/20 rounded-full flex items-center justify-center">
@@ -149,7 +143,7 @@ export const VirtualCardIcon = ({
                   <div className="space-y-3 text-sm">
                     <div className="flex justify-between">
                       <span className="text-gray-500">Type:</span>
-                      <span className="font-medium">{card.cardType}</span>
+                      <span className="font-medium">MorphCard</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-gray-500">Expires:</span>
